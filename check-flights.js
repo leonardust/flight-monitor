@@ -19,6 +19,8 @@ if (missing.length > 0) {
 
 const { TELEGRAM_TOKEN, TELEGRAM_CHAT_ID, GIST_ID, GH_PAT } = process.env;
 const HTTP_TIMEOUT = 15_000;
+const RETRY_ATTEMPTS = 3;
+const RETRY_DELAY_MS = 1_000;
 const CURRENCY = "PLN";
 
 const ROUTES = [
@@ -62,9 +64,30 @@ function request(options, body = null) {
   });
 }
 
+async function requestWithRetry(
+  options,
+  body = null,
+  attempts = RETRY_ATTEMPTS,
+) {
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      const res = await request(options, body);
+      if (res.status < 500) return res;
+      throw new Error(`HTTP ${res.status}`);
+    } catch (err) {
+      if (i === attempts) throw err;
+      const delay = RETRY_DELAY_MS * 2 ** (i - 1);
+      console.warn(
+        `Request failed (attempt ${i}/${attempts}): ${err.message}. Retrying in ${delay}ms...`,
+      );
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+}
+
 function jsonPost(hostname, path, payload) {
   const body = JSON.stringify(payload);
-  return request(
+  return requestWithRetry(
     {
       hostname,
       path,
@@ -89,7 +112,7 @@ async function fetchPrice(route) {
     currency: CURRENCY,
   });
 
-  const res = await request({
+  const res = await requestWithRetry({
     hostname: "www.ryanair.com",
     path: `/api/farfnd/v4/oneWayFares?${params}`,
     method: "GET",
@@ -111,7 +134,7 @@ const gistHeaders = {
 };
 
 async function loadState() {
-  const res = await request({
+  const res = await requestWithRetry({
     hostname: "api.github.com",
     path: `/gists/${GIST_ID}`,
     method: "GET",
@@ -125,7 +148,7 @@ async function saveState(state) {
   const body = JSON.stringify({
     files: { "state.json": { content: JSON.stringify(state, null, 2) } },
   });
-  const res = await request(
+  const res = await requestWithRetry(
     {
       hostname: "api.github.com",
       path: `/gists/${GIST_ID}`,
