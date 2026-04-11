@@ -9,7 +9,7 @@ Stan (ostatnia cena) przechowywany w prywatnym GitHub Gist. Powiadomienia: wył�
 
 ## Architektura
 
-```
+```txt
 GitHub Actions (cron co 15 min)
         ↓
   check-flights.js
@@ -48,7 +48,7 @@ GitHub Actions (cron co 15 min)
 
 Nieoficjalny endpoint (wewnętrzny, ten sam co strona www):
 
-```
+```txt
 GET https://www.ryanair.com/api/farfnd/v4/oneWayFares
   ?departureAirportIataCode=WRO
   &arrivalAirportIataCode=BGY
@@ -102,7 +102,7 @@ Plik `state.json` w prywatnym Gist:
 6. ✅ Pobierz **chat_id**: wyślij wiadomość do bota, odwiedź `https://api.telegram.org/bot{TOKEN}/getUpdates`
 7. ✅ Dodaj 4 wartości jako **GitHub Secrets** w repozytorium
 8. ✅ Wgraj pliki `check-flights.js` i `.github/workflows/monitor.yml`
-9. Uruchom workflow ręcznie i sprawdź logi
+9. ✅ Uruchom workflow ręcznie i sprawdź logi
 
 ---
 
