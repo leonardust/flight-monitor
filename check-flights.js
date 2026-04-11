@@ -3,10 +3,23 @@
 
 const https = require("https");
 
-const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
-const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
-const GIST_ID = process.env.GIST_ID;
-const GH_PAT = process.env.GH_PAT;
+// ── Config ──────────────────────────────────────────────
+
+const REQUIRED_ENV = [
+  "TELEGRAM_TOKEN",
+  "TELEGRAM_CHAT_ID",
+  "GIST_ID",
+  "GH_PAT",
+];
+const missing = REQUIRED_ENV.filter((k) => !process.env[k]);
+if (missing.length > 0) {
+  console.error(`Missing env variables: ${missing.join(", ")}`);
+  process.exit(1);
+}
+
+const { TELEGRAM_TOKEN, TELEGRAM_CHAT_ID, GIST_ID, GH_PAT } = process.env;
+const HTTP_TIMEOUT = 15_000;
+const CURRENCY = "PLN";
 
 const ROUTES = [
   {
@@ -25,174 +38,189 @@ const ROUTES = [
   },
 ];
 
-function httpsRequest(options, body = null) {
+// ── HTTP helper ─────────────────────────────────────────
+
+function request(options, body = null) {
   return new Promise((resolve, reject) => {
     const req = https.request(options, (res) => {
       let data = "";
       res.on("data", (chunk) => (data += chunk));
       res.on("end", () => {
         try {
-          resolve({ status: res.statusCode, body: JSON.parse(data) });
+          resolve({ status: res.statusCode, data: JSON.parse(data) });
         } catch {
-          resolve({ status: res.statusCode, body: data });
+          resolve({ status: res.statusCode, data });
         }
       });
     });
+    req.setTimeout(HTTP_TIMEOUT, () =>
+      req.destroy(new Error(`Timeout after ${HTTP_TIMEOUT}ms`)),
+    );
     req.on("error", reject);
     if (body) req.write(body);
     req.end();
   });
 }
 
-async function fetchFare(route) {
+function jsonPost(hostname, path, payload) {
+  const body = JSON.stringify(payload);
+  return request(
+    {
+      hostname,
+      path,
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Length": Buffer.byteLength(body),
+      },
+    },
+    body,
+  );
+}
+
+// ── Ryanair API ─────────────────────────────────────────
+
+async function fetchPrice(route) {
   const params = new URLSearchParams({
     departureAirportIataCode: route.from,
     arrivalAirportIataCode: route.to,
     outboundDepartureDateFrom: route.date,
     outboundDepartureDateTo: route.date,
-    currency: "PLN",
+    currency: CURRENCY,
   });
 
-  const options = {
+  const res = await request({
     hostname: "www.ryanair.com",
     path: `/api/farfnd/v4/oneWayFares?${params}`,
     method: "GET",
-    headers: {
-      "User-Agent": "Mozilla/5.0",
-      Accept: "application/json",
-    },
-  };
+    headers: { "User-Agent": "Mozilla/5.0", Accept: "application/json" },
+  });
 
-  const res = await httpsRequest(options);
-  if (res.status !== 200) throw new Error(`Ryanair API status ${res.status}`);
+  if (res.status !== 200) throw new Error(`Ryanair API ${res.status}`);
 
-  const fares = res.body.fares;
-  if (!fares || fares.length === 0) return null;
-  return fares[0].outbound.price.value;
+  const fares = res.data.fares;
+  return fares?.length ? fares[0].outbound.price.value : null;
 }
 
-async function readGist() {
-  const options = {
+// ── GitHub Gist state ───────────────────────────────────
+
+const gistHeaders = {
+  Authorization: `token ${GH_PAT}`,
+  "User-Agent": "flight-monitor",
+  Accept: "application/vnd.github.v3+json",
+};
+
+async function loadState() {
+  const res = await request({
     hostname: "api.github.com",
     path: `/gists/${GIST_ID}`,
     method: "GET",
-    headers: {
-      Authorization: `token ${GH_PAT}`,
-      "User-Agent": "flight-monitor",
-      Accept: "application/vnd.github.v3+json",
-    },
-  };
-
-  const res = await httpsRequest(options);
-  if (res.status !== 200) throw new Error(`Gist read status ${res.status}`);
-
-  const content = res.body.files["state.json"].content;
-  return JSON.parse(content);
+    headers: gistHeaders,
+  });
+  if (res.status !== 200) throw new Error(`Gist read ${res.status}`);
+  return JSON.parse(res.data.files["state.json"].content);
 }
 
-async function writeGist(state) {
+async function saveState(state) {
   const body = JSON.stringify({
-    files: {
-      "state.json": {
-        content: JSON.stringify(state, null, 2),
+    files: { "state.json": { content: JSON.stringify(state, null, 2) } },
+  });
+  const res = await request(
+    {
+      hostname: "api.github.com",
+      path: `/gists/${GIST_ID}`,
+      method: "PATCH",
+      headers: {
+        ...gistHeaders,
+        "Content-Type": "application/json",
+        "Content-Length": Buffer.byteLength(body),
       },
     },
-  });
-
-  const options = {
-    hostname: "api.github.com",
-    path: `/gists/${GIST_ID}`,
-    method: "PATCH",
-    headers: {
-      Authorization: `token ${GH_PAT}`,
-      "User-Agent": "flight-monitor",
-      Accept: "application/vnd.github.v3+json",
-      "Content-Type": "application/json",
-      "Content-Length": Buffer.byteLength(body),
-    },
-  };
-
-  const res = await httpsRequest(options, body);
-  if (res.status !== 200) throw new Error(`Gist write status ${res.status}`);
+    body,
+  );
+  if (res.status !== 200) throw new Error(`Gist write ${res.status}`);
 }
 
-async function sendTelegram(message) {
-  const body = JSON.stringify({
-    chat_id: TELEGRAM_CHAT_ID,
-    text: message,
-  });
+// ── Telegram ────────────────────────────────────────────
 
-  const options = {
-    hostname: "api.telegram.org",
-    path: `/bot${TELEGRAM_TOKEN}/sendMessage`,
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Content-Length": Buffer.byteLength(body),
-    },
-  };
-
-  const res = await httpsRequest(options, body);
+async function notify(text) {
+  const res = await jsonPost(
+    "api.telegram.org",
+    `/bot${TELEGRAM_TOKEN}/sendMessage`,
+    { chat_id: TELEGRAM_CHAT_ID, text },
+  );
   if (res.status !== 200)
-    throw new Error(
-      `Telegram status ${res.status}: ${JSON.stringify(res.body)}`,
-    );
+    throw new Error(`Telegram ${res.status}: ${JSON.stringify(res.data)}`);
 }
 
-function buildMessage(route, oldPrice, newPrice) {
-  if (oldPrice === null && newPrice !== null) {
-    return `NOWY LOT ✈️ ${route.label}: ${newPrice} PLN`;
-  }
-  if (oldPrice !== null && newPrice === null) {
-    return `LOT NIEDOSTĘPNY ❌ ${route.label}`;
-  }
-  if (newPrice < oldPrice) {
-    const diff = (oldPrice - newPrice).toFixed(2);
-    return `TANIEJE 📉 ${route.label}: ${oldPrice} → ${newPrice} PLN (-${diff} PLN)`;
-  }
-  if (newPrice > oldPrice) {
-    const diff = (newPrice - oldPrice).toFixed(2);
-    return `DROŻEJE 📈 ${route.label}: ${oldPrice} → ${newPrice} PLN (+${diff} PLN)`;
-  }
+// ── Message builder ─────────────────────────────────────
+
+function fmt(price) {
+  return price.toFixed(2);
+}
+
+function buildMessage(label, oldPrice, newPrice) {
+  if (oldPrice === null && newPrice !== null)
+    return `NOWY LOT ✈️ ${label}: ${fmt(newPrice)} ${CURRENCY}`;
+
+  if (oldPrice !== null && newPrice === null)
+    return `LOT NIEDOSTĘPNY ❌ ${label}`;
+
+  if (newPrice < oldPrice)
+    return `TANIEJE 📉 ${label}: ${fmt(oldPrice)} → ${fmt(newPrice)} ${CURRENCY} (-${fmt(oldPrice - newPrice)} ${CURRENCY})`;
+
+  if (newPrice > oldPrice)
+    return `DROŻEJE 📈 ${label}: ${fmt(oldPrice)} → ${fmt(newPrice)} ${CURRENCY} (+${fmt(newPrice - oldPrice)} ${CURRENCY})`;
+
   return null;
 }
 
+// ── Main ────────────────────────────────────────────────
+
 async function main() {
-  const state = await readGist();
+  const state = await loadState();
   let changed = false;
 
   for (const route of ROUTES) {
-    let currentPrice;
+    let price;
     try {
-      currentPrice = await fetchFare(route);
+      price = await fetchPrice(route);
     } catch (err) {
-      console.error(`[${route.key}] fetch error:`, err.message);
+      console.error(`[${route.key}] fetch error: ${err.message}`);
       continue;
     }
 
-    const previousPrice = state[route.key]?.price ?? null;
-    console.log(
-      `[${route.key}] previous=${previousPrice} current=${currentPrice}`,
-    );
+    if (!state[route.key]) state[route.key] = { price: null };
+    const prev = state[route.key].price ?? null;
 
-    const message = buildMessage(route, previousPrice, currentPrice);
-    if (message) {
-      console.log(`[${route.key}] Sending: ${message}`);
-      await sendTelegram(message);
-      state[route.key] = { price: currentPrice };
-      changed = true;
+    console.log(`[${route.key}] prev=${prev} curr=${price}`);
+
+    const msg = buildMessage(route.label, prev, price);
+    if (!msg) {
+      console.log(`[${route.key}] No change.`);
+      continue;
+    }
+
+    console.log(`[${route.key}] → ${msg}`);
+    state[route.key] = { price };
+    changed = true;
+
+    try {
+      await notify(msg);
+    } catch (err) {
+      console.error(`[${route.key}] Telegram error: ${err.message}`);
     }
   }
 
   if (changed) {
-    await writeGist(state);
-    console.log("State updated in Gist.");
+    await saveState(state);
+    console.log("State saved.");
   } else {
-    console.log("No changes detected.");
+    console.log("No changes.");
   }
 }
 
 main().catch((err) => {
-  console.error("Fatal error:", err);
+  console.error("Fatal:", err);
   process.exit(1);
 });
