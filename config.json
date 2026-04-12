@@ -1,0 +1,19 @@
+{
+  "currency": "PLN",
+  "routes": [
+    {
+      "key": "WRO_BGY",
+      "from": "WRO",
+      "to": "BGY",
+      "label": "WRO→BGY",
+      "dates": [{ "date": "2026-11-08", "label": "8 lis" }]
+    },
+    {
+      "key": "BGY_WRO",
+      "from": "BGY",
+      "to": "WRO",
+      "label": "BGY→WRO",
+      "dates": [{ "date": "2026-11-11", "label": "11 lis" }]
+    }
+  ]
+}
