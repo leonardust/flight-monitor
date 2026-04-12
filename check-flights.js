@@ -1,9 +1,39 @@
 #!/usr/bin/env node
 "use strict";
 
+const fs = require("fs");
 const https = require("https");
+const path = require("path");
 
 // ── Config ──────────────────────────────────────────────
+
+function loadConfig() {
+  const localPath = path.join(__dirname, "config.local.json");
+  const defaultPath = path.join(__dirname, "config.json");
+  const filePath = fs.existsSync(localPath) ? localPath : defaultPath;
+  if (!fs.existsSync(filePath))
+    throw new Error("No config file found (config.json or config.local.json)");
+  return JSON.parse(fs.readFileSync(filePath, "utf8"));
+}
+
+const config = loadConfig();
+const CURRENCY = config.currency;
+const ROUTES = config.routes;
+
+const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN ?? "";
+const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID ?? "";
+const GIST_ID = process.env.GIST_ID ?? "";
+const GH_PAT = process.env.GH_PAT ?? "";
+const _rawThreshold = process.env.PRICE_THRESHOLD;
+const PRICE_THRESHOLD = _rawThreshold
+  ? (() => {
+      const v = parseFloat(_rawThreshold);
+      return isFinite(v) ? v : null;
+    })()
+  : null;
+const HTTP_TIMEOUT = 15_000;
+const RETRY_ATTEMPTS = 3;
+const RETRY_DELAY_MS = 1_000;
 
 const REQUIRED_ENV = [
   "TELEGRAM_TOKEN",
@@ -24,36 +54,6 @@ if (require.main === module) {
     process.exit(1);
   }
 }
-
-const { TELEGRAM_TOKEN, TELEGRAM_CHAT_ID, GIST_ID, GH_PAT } = process.env;
-const _rawThreshold = process.env.PRICE_THRESHOLD;
-const PRICE_THRESHOLD = _rawThreshold
-  ? (() => {
-      const v = parseFloat(_rawThreshold);
-      return isFinite(v) ? v : null;
-    })()
-  : null;
-const HTTP_TIMEOUT = 15_000;
-const RETRY_ATTEMPTS = 3;
-const RETRY_DELAY_MS = 1_000;
-const CURRENCY = "PLN";
-
-const ROUTES = [
-  {
-    key: "WRO_BGY",
-    from: "WRO",
-    to: "BGY",
-    date: "2026-11-08",
-    label: "WRO→BGY 8 lis",
-  },
-  {
-    key: "BGY_WRO",
-    from: "BGY",
-    to: "WRO",
-    date: "2026-11-11",
-    label: "BGY→WRO 11 lis",
-  },
-];
 
 // ── HTTP helper ─────────────────────────────────────────
 
@@ -197,6 +197,16 @@ function fmt(price) {
   return price.toFixed(2);
 }
 
+function buildLabel(routeLabel, dateLabel) {
+  return dateLabel ? `${routeLabel} ${dateLabel}` : routeLabel;
+}
+
+function findCheapest(dateResults) {
+  const available = dateResults.filter((r) => r.price !== null);
+  if (!available.length) return null;
+  return available.reduce((min, r) => (r.price < min.price ? r : min));
+}
+
 function buildMessage(label, oldPrice, newPrice, threshold = null) {
   if (oldPrice === null && newPrice !== null)
     return `NOWY LOT ✈️ ${label}: ${fmt(newPrice)} ${CURRENCY}`;
@@ -222,33 +232,75 @@ async function main() {
   let changed = false;
 
   for (const route of ROUTES) {
-    let price;
-    try {
-      price = await fetchPrice(route);
-    } catch (err) {
-      console.error(`[${route.key}] fetch error: ${err.message}`);
+    const dateResults = [];
+    let fetchErrors = 0;
+    for (const dateEntry of route.dates) {
+      try {
+        const price = await fetchPrice({ ...route, date: dateEntry.date });
+        dateResults.push({
+          date: dateEntry.date,
+          label: dateEntry.label,
+          price,
+        });
+      } catch (err) {
+        fetchErrors += 1;
+        console.error(
+          `[${route.key}] fetch error for ${dateEntry.date}: ${err.message}`,
+        );
+      }
+    }
+
+    if (dateResults.length === 0) {
+      console.error(
+        `[${route.key}] all date fetches failed (${fetchErrors}/${route.dates.length}); skipping.`,
+      );
       continue;
     }
 
-    if (!state[route.key]) state[route.key] = { price: null };
-    const prev = state[route.key].price ?? null;
+    const cheapest = findCheapest(dateResults);
 
-    console.log(`[${route.key}] prev=${prev} curr=${price}`);
+    if (!state[route.key])
+      state[route.key] = { price: null, date: null, dateLabel: null };
+    const prev = {
+      price: state[route.key].price ?? null,
+      date: state[route.key].date ?? null,
+      dateLabel: state[route.key].dateLabel ?? null,
+    };
 
-    const msg = buildMessage(route.label, prev, price, PRICE_THRESHOLD);
-    if (!msg) {
+    const newPrice = cheapest?.price ?? null;
+    const newDate = cheapest?.date ?? null;
+    const newDateLabel = cheapest?.label ?? null;
+
+    const msgLabel = buildLabel(route.label, newDateLabel ?? prev.dateLabel);
+
+    console.log(
+      `[${route.key}] prev=${prev.price} (${prev.dateLabel}) curr=${newPrice} (${newDateLabel})`,
+    );
+
+    const msg = buildMessage(msgLabel, prev.price, newPrice, PRICE_THRESHOLD);
+    const stateChanged =
+      prev.price !== newPrice ||
+      prev.date !== newDate ||
+      prev.dateLabel !== newDateLabel;
+
+    if (msg) {
+      console.log(`[${route.key}] → ${msg}`);
+      try {
+        await notify(msg);
+      } catch (err) {
+        console.error(`[${route.key}] Telegram error: ${err.message}`);
+      }
+    } else {
       console.log(`[${route.key}] No change.`);
-      continue;
     }
 
-    console.log(`[${route.key}] → ${msg}`);
-    state[route.key] = { price };
-    changed = true;
-
-    try {
-      await notify(msg);
-    } catch (err) {
-      console.error(`[${route.key}] Telegram error: ${err.message}`);
+    if (stateChanged) {
+      state[route.key] = {
+        price: newPrice,
+        date: newDate,
+        dateLabel: newDateLabel,
+      };
+      changed = true;
     }
   }
 
@@ -260,7 +312,14 @@ async function main() {
   }
 }
 
-module.exports = { buildMessage, fmt, PRICE_THRESHOLD };
+module.exports = {
+  buildLabel,
+  buildMessage,
+  CURRENCY,
+  findCheapest,
+  fmt,
+  PRICE_THRESHOLD,
+};
 
 if (require.main === module) {
   main().catch((err) => {
