@@ -48,3 +48,41 @@ test("buildMessage returns null when an unavailable flight stays unavailable", (
 test("buildMessage returns null when the price does not change", () => {
   assert.equal(buildMessage("WRO→BGY 8 lis", 100, 100), null);
 });
+
+// ── PRICE_THRESHOLD tests ────────────────────────────────
+
+test("buildMessage returns null when price drops but stays at or above threshold", () => {
+  assert.equal(buildMessage("WRO→BGY 8 lis", 200, 150, 150), null);
+});
+
+test("buildMessage returns null when price drops but is above threshold", () => {
+  assert.equal(buildMessage("WRO→BGY 8 lis", 200, 160, 150), null);
+});
+
+test("buildMessage returns TANIEJE when price drops below threshold", () => {
+  assert.equal(
+    buildMessage("WRO→BGY 8 lis", 200, 140, 150),
+    "TANIEJE 📉 WRO→BGY 8 lis: 200.00 → 140.00 PLN (-60.00 PLN)",
+  );
+});
+
+test("buildMessage returns TANIEJE when threshold is null and price drops", () => {
+  assert.equal(
+    buildMessage("WRO→BGY 8 lis", 100, 80, null),
+    "TANIEJE 📉 WRO→BGY 8 lis: 100.00 → 80.00 PLN (-20.00 PLN)",
+  );
+});
+
+test("buildMessage returns NOWY LOT regardless of threshold", () => {
+  assert.equal(
+    buildMessage("WRO→BGY 8 lis", null, 200, 150),
+    "NOWY LOT ✈️ WRO→BGY 8 lis: 200.00 PLN",
+  );
+});
+
+test("buildMessage returns LOT NIEDOSTĘPNY regardless of threshold", () => {
+  assert.equal(
+    buildMessage("WRO→BGY 8 lis", 200, null, 150),
+    "LOT NIEDOSTĘPNY ❌ WRO→BGY 8 lis",
+  );
+});
