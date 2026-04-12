@@ -11,10 +11,12 @@ const REQUIRED_ENV = [
   "GIST_ID",
   "GH_PAT",
 ];
-const missing = REQUIRED_ENV.filter((k) => !process.env[k]);
-if (missing.length > 0) {
-  console.error(`Missing env variables: ${missing.join(", ")}`);
-  process.exit(1);
+if (require.main === module) {
+  const missing = REQUIRED_ENV.filter((k) => !process.env[k]);
+  if (missing.length > 0) {
+    console.error(`Missing env variables: ${missing.join(", ")}`);
+    process.exit(1);
+  }
 }
 
 const { TELEGRAM_TOKEN, TELEGRAM_CHAT_ID, GIST_ID, GH_PAT } = process.env;
@@ -243,7 +245,11 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error("Fatal:", err);
-  process.exit(1);
-});
+module.exports = { buildMessage, fmt };
+
+if (require.main === module) {
+  main().catch((err) => {
+    console.error("Fatal:", err);
+    process.exit(1);
+  });
+}
