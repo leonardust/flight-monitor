@@ -6,6 +6,7 @@ const assert = require("node:assert/strict");
 const {
   buildLabel,
   buildMessage,
+  CURRENCY,
   findCheapest,
   fmt,
 } = require("./check-flights");
@@ -21,7 +22,7 @@ test("fmt formats fractional numbers with two decimals", () => {
 test("buildMessage returns a message for a newly available flight", () => {
   assert.equal(
     buildMessage("WRO→BGY 8 lis", null, 199.99),
-    "NOWY LOT ✈️ WRO→BGY 8 lis: 199.99 PLN",
+    `NOWY LOT ✈️ WRO→BGY 8 lis: 199.99 ${CURRENCY}`,
   );
 });
 
@@ -35,14 +36,14 @@ test("buildMessage returns a message when a flight becomes unavailable", () => {
 test("buildMessage returns a message when the price drops", () => {
   assert.equal(
     buildMessage("WRO→BGY 8 lis", 100, 80),
-    "TANIEJE 📉 WRO→BGY 8 lis: 100.00 → 80.00 PLN (-20.00 PLN)",
+    `TANIEJE 📉 WRO→BGY 8 lis: 100.00 → 80.00 ${CURRENCY} (-20.00 ${CURRENCY})`,
   );
 });
 
 test("buildMessage returns a message when the price rises", () => {
   assert.equal(
     buildMessage("WRO→BGY 8 lis", 80, 100),
-    "DROŻEJE 📈 WRO→BGY 8 lis: 80.00 → 100.00 PLN (+20.00 PLN)",
+    `DROŻEJE 📈 WRO→BGY 8 lis: 80.00 → 100.00 ${CURRENCY} (+20.00 ${CURRENCY})`,
   );
 });
 
@@ -67,21 +68,21 @@ test("buildMessage returns null when price drops but is above threshold", () => 
 test("buildMessage returns TANIEJE when price drops below threshold", () => {
   assert.equal(
     buildMessage("WRO→BGY 8 lis", 200, 140, 150),
-    "TANIEJE 📉 WRO→BGY 8 lis: 200.00 → 140.00 PLN (-60.00 PLN)",
+    `TANIEJE 📉 WRO→BGY 8 lis: 200.00 → 140.00 ${CURRENCY} (-60.00 ${CURRENCY})`,
   );
 });
 
 test("buildMessage returns TANIEJE when threshold is null and price drops", () => {
   assert.equal(
     buildMessage("WRO→BGY 8 lis", 100, 80, null),
-    "TANIEJE 📉 WRO→BGY 8 lis: 100.00 → 80.00 PLN (-20.00 PLN)",
+    `TANIEJE 📉 WRO→BGY 8 lis: 100.00 → 80.00 ${CURRENCY} (-20.00 ${CURRENCY})`,
   );
 });
 
 test("buildMessage returns NOWY LOT regardless of threshold", () => {
   assert.equal(
     buildMessage("WRO→BGY 8 lis", null, 200, 150),
-    "NOWY LOT ✈️ WRO→BGY 8 lis: 200.00 PLN",
+    `NOWY LOT ✈️ WRO→BGY 8 lis: 200.00 ${CURRENCY}`,
   );
 });
 
@@ -95,7 +96,7 @@ test("buildMessage returns LOT NIEDOSTĘPNY regardless of threshold", () => {
 test("buildMessage returns TANIEJE when threshold is NaN (treated as null)", () => {
   assert.equal(
     buildMessage("WRO→BGY 8 lis", 100, 80, NaN),
-    "TANIEJE 📉 WRO→BGY 8 lis: 100.00 → 80.00 PLN (-20.00 PLN)",
+    `TANIEJE 📉 WRO→BGY 8 lis: 100.00 → 80.00 ${CURRENCY} (-20.00 ${CURRENCY})`,
   );
 });
 
@@ -165,7 +166,7 @@ test("cheapest date disappears, next date becomes cheapest and price rises", () 
   });
   assert.equal(
     buildMessage(buildLabel("WRO→BGY", cheapest.label), 149.99, cheapest.price),
-    "DROŻEJE 📈 WRO→BGY 9 lis: 149.99 → 179.99 PLN (+30.00 PLN)",
+    `DROŻEJE 📈 WRO→BGY 9 lis: 149.99 → 179.99 ${CURRENCY} (+30.00 ${CURRENCY})`,
   );
 });
 
@@ -182,7 +183,7 @@ test("new cheaper date appears and becomes cheapest", () => {
   });
   assert.equal(
     buildMessage(buildLabel("WRO→BGY", cheapest.label), 199.99, cheapest.price),
-    "TANIEJE 📉 WRO→BGY 9 lis: 199.99 → 149.99 PLN (-50.00 PLN)",
+    `TANIEJE 📉 WRO→BGY 9 lis: 199.99 → 149.99 ${CURRENCY} (-50.00 ${CURRENCY})`,
   );
 });
 
@@ -213,6 +214,6 @@ test("flight appears for first time on one of many dates", () => {
   });
   assert.equal(
     buildMessage(buildLabel("WRO→BGY", cheapest.label), null, cheapest.price),
-    "NOWY LOT ✈️ WRO→BGY 9 lis: 249.99 PLN",
+    `NOWY LOT ✈️ WRO→BGY 9 lis: 249.99 ${CURRENCY}`,
   );
 });

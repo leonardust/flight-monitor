@@ -233,17 +233,28 @@ async function main() {
 
   for (const route of ROUTES) {
     const dateResults = [];
+    let fetchErrors = 0;
     for (const dateEntry of route.dates) {
-      let price;
       try {
-        price = await fetchPrice({ ...route, date: dateEntry.date });
+        const price = await fetchPrice({ ...route, date: dateEntry.date });
+        dateResults.push({
+          date: dateEntry.date,
+          label: dateEntry.label,
+          price,
+        });
       } catch (err) {
+        fetchErrors += 1;
         console.error(
           `[${route.key}] fetch error for ${dateEntry.date}: ${err.message}`,
         );
-        price = null;
       }
-      dateResults.push({ date: dateEntry.date, label: dateEntry.label, price });
+    }
+
+    if (dateResults.length === 0) {
+      console.error(
+        `[${route.key}] all date fetches failed (${fetchErrors}/${route.dates.length}); skipping.`,
+      );
+      continue;
     }
 
     const cheapest = findCheapest(dateResults);
@@ -267,7 +278,10 @@ async function main() {
     );
 
     const msg = buildMessage(msgLabel, prev.price, newPrice, PRICE_THRESHOLD);
-    const stateChanged = prev.price !== newPrice || prev.date !== newDate;
+    const stateChanged =
+      prev.price !== newPrice ||
+      prev.date !== newDate ||
+      prev.dateLabel !== newDateLabel;
 
     if (msg) {
       console.log(`[${route.key}] → ${msg}`);
@@ -301,6 +315,7 @@ async function main() {
 module.exports = {
   buildLabel,
   buildMessage,
+  CURRENCY,
   findCheapest,
   fmt,
   PRICE_THRESHOLD,
