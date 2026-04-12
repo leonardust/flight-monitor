@@ -17,9 +17,22 @@ if (require.main === module) {
     console.error(`Missing env variables: ${missing.join(", ")}`);
     process.exit(1);
   }
+  if (_rawThreshold && PRICE_THRESHOLD === null) {
+    console.error(
+      `Invalid PRICE_THRESHOLD: "${_rawThreshold}" is not a valid number.`,
+    );
+    process.exit(1);
+  }
 }
 
 const { TELEGRAM_TOKEN, TELEGRAM_CHAT_ID, GIST_ID, GH_PAT } = process.env;
+const _rawThreshold = process.env.PRICE_THRESHOLD;
+const PRICE_THRESHOLD = _rawThreshold
+  ? (() => {
+      const v = parseFloat(_rawThreshold);
+      return isFinite(v) ? v : null;
+    })()
+  : null;
 const HTTP_TIMEOUT = 15_000;
 const RETRY_ATTEMPTS = 3;
 const RETRY_DELAY_MS = 1_000;
@@ -184,15 +197,17 @@ function fmt(price) {
   return price.toFixed(2);
 }
 
-function buildMessage(label, oldPrice, newPrice) {
+function buildMessage(label, oldPrice, newPrice, threshold = null) {
   if (oldPrice === null && newPrice !== null)
     return `NOWY LOT ✈️ ${label}: ${fmt(newPrice)} ${CURRENCY}`;
 
   if (oldPrice !== null && newPrice === null)
     return `LOT NIEDOSTĘPNY ❌ ${label}`;
 
-  if (newPrice < oldPrice)
+  if (newPrice < oldPrice) {
+    if (threshold !== null && newPrice >= threshold) return null;
     return `TANIEJE 📉 ${label}: ${fmt(oldPrice)} → ${fmt(newPrice)} ${CURRENCY} (-${fmt(oldPrice - newPrice)} ${CURRENCY})`;
+  }
 
   if (newPrice > oldPrice)
     return `DROŻEJE 📈 ${label}: ${fmt(oldPrice)} → ${fmt(newPrice)} ${CURRENCY} (+${fmt(newPrice - oldPrice)} ${CURRENCY})`;
@@ -220,7 +235,7 @@ async function main() {
 
     console.log(`[${route.key}] prev=${prev} curr=${price}`);
 
-    const msg = buildMessage(route.label, prev, price);
+    const msg = buildMessage(route.label, prev, price, PRICE_THRESHOLD);
     if (!msg) {
       console.log(`[${route.key}] No change.`);
       continue;
@@ -245,7 +260,7 @@ async function main() {
   }
 }
 
-module.exports = { buildMessage, fmt };
+module.exports = { buildMessage, fmt, PRICE_THRESHOLD };
 
 if (require.main === module) {
   main().catch((err) => {
