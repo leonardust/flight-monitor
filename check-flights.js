@@ -17,11 +17,21 @@ if (require.main === module) {
     console.error(`Missing env variables: ${missing.join(", ")}`);
     process.exit(1);
   }
+  if (_rawThreshold && PRICE_THRESHOLD === null) {
+    console.error(
+      `Invalid PRICE_THRESHOLD: "${_rawThreshold}" is not a valid number.`,
+    );
+    process.exit(1);
+  }
 }
 
 const { TELEGRAM_TOKEN, TELEGRAM_CHAT_ID, GIST_ID, GH_PAT } = process.env;
-const PRICE_THRESHOLD = process.env.PRICE_THRESHOLD
-  ? parseFloat(process.env.PRICE_THRESHOLD)
+const _rawThreshold = process.env.PRICE_THRESHOLD;
+const PRICE_THRESHOLD = _rawThreshold
+  ? (() => {
+      const v = parseFloat(_rawThreshold);
+      return isFinite(v) ? v : null;
+    })()
   : null;
 const HTTP_TIMEOUT = 15_000;
 const RETRY_ATTEMPTS = 3;

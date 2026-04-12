@@ -86,3 +86,10 @@ test("buildMessage returns LOT NIEDOSTĘPNY regardless of threshold", () => {
     "LOT NIEDOSTĘPNY ❌ WRO→BGY 8 lis",
   );
 });
+
+test("buildMessage returns TANIEJE when threshold is NaN (treated as null)", () => {
+  assert.equal(
+    buildMessage("WRO→BGY 8 lis", 100, 80, NaN),
+    "TANIEJE 📉 WRO→BGY 8 lis: 100.00 → 80.00 PLN (-20.00 PLN)",
+  );
+});
