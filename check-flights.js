@@ -562,61 +562,72 @@ async function report() {
     PASSENGERS.teens +
     PASSENGERS.children +
     PASSENGERS.infants;
-  const sections = [];
+  const parts = [];
+  const rtLines = [];
 
   for (const route of ROUTES) {
+    const routeLabel = `${route.from} \u2192 ${route.to}`;
+    const dateLines = [];
+
     for (const dateEntry of route.dates) {
-      const label = buildLabel(route.label, dateEntry.label);
+      let price = null;
       try {
-        const price = await fetchPrice({ ...route, date: dateEntry.date });
-        if (price !== null) {
-          const oneWayUrl = buildRyanairUrl(
-            route.from,
-            route.to,
-            dateEntry.date,
-          );
-          const lines = [
-            `\u2708\ufe0f ${label}`,
-            `\u2192 <a href="${oneWayUrl}">${fmt(price * totalPax)} ${CURRENCY}</a>`,
-          ];
-          for (const rt of dateEntry.roundTrip ?? []) {
-            const rtUrl = buildRyanairRoundTripUrl(rt.dateOut, rt.dateIn);
-            try {
-              const inboundPrice = await fetchPrice({
-                from: route.to,
-                to: route.from,
-                date: rt.dateIn,
-              });
-              if (inboundPrice !== null) {
-                const rtTotal = fmt((price + inboundPrice) * totalPax);
-                lines.push(
-                  `\u2194 ${dateEntry.label}\u2192${rt.label}: <a href="${rtUrl}">${rtTotal} ${CURRENCY}</a>`,
-                );
-              } else {
-                lines.push(
-                  `\u2194 ${dateEntry.label}\u2192${rt.label}: <a href="${rtUrl}">sprawd\u017a</a>`,
-                );
-              }
-            } catch {
-              lines.push(
-                `\u2194 ${dateEntry.label}\u2192${rt.label}: <a href="${rtUrl}">sprawd\u017a</a>`,
-              );
-            }
-          }
-          sections.push(lines.join("\n"));
-        } else {
-          sections.push(`\u2708\ufe0f ${label}: niedost\u0119pny`);
-        }
+        price = await fetchPrice({ ...route, date: dateEntry.date });
       } catch (err) {
         console.error(
           `[${route.key}] fetch error for ${dateEntry.date}: ${err.message}`,
         );
-        sections.push(`\u2708\ufe0f ${label}: b\u0142\u0105d pobierania`);
       }
+      const oneWayUrl = buildRyanairUrl(route.from, route.to, dateEntry.date);
+      if (price !== null) {
+        dateLines.push(
+          `${dateEntry.label} \u2192 <a href="${oneWayUrl}">${fmt(price * totalPax)} ${CURRENCY}</a>`,
+        );
+        for (const rt of dateEntry.roundTrip ?? []) {
+          const rtUrl = buildRyanairRoundTripUrl(rt.dateOut, rt.dateIn);
+          try {
+            const inboundPrice = await fetchPrice({
+              from: route.to,
+              to: route.from,
+              date: rt.dateIn,
+            });
+            if (inboundPrice !== null) {
+              const rtTotal = fmt((price + inboundPrice) * totalPax);
+              rtLines.push(
+                `${dateEntry.label} \u2192 ${rt.label}: <a href="${rtUrl}">${rtTotal} ${CURRENCY}</a>`,
+              );
+            } else {
+              rtLines.push(
+                `${dateEntry.label} \u2192 ${rt.label}: <a href="${rtUrl}">sprawd\u017a</a>`,
+              );
+            }
+          } catch {
+            rtLines.push(
+              `${dateEntry.label} \u2192 ${rt.label}: <a href="${rtUrl}">sprawd\u017a</a>`,
+            );
+          }
+        }
+      } else {
+        dateLines.push(`${dateEntry.label} \u2192 niedost\u0119pny`);
+      }
+    }
+
+    if (dateLines.length > 0) {
+      parts.push([`\u2708\ufe0f ${routeLabel}`, ...dateLines].join("\n"));
     }
   }
 
-  if (sections.length > 0) await notify(sections.join("\n\n"), [], "HTML");
+  if (rtLines.length > 0) {
+    const rtRoute = ROUTES.find((r) =>
+      r.dates.some((d) => d.roundTrip?.length),
+    );
+    const rtLabel = rtRoute
+      ? `${rtRoute.from} \u2192 ${rtRoute.to} - ${rtRoute.from}`
+      : "Powroty";
+    parts.push([`\u2708\ufe0f ${rtLabel}`, ...rtLines].join("\n"));
+  }
+
+  if (parts.length > 0) await notify(parts.join("\n\n"), [], "HTML");
 }
 module.exports = {
   buildAsciiChart,
