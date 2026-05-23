@@ -11,8 +11,16 @@
           "date": "2026-11-07",
           "label": "7 lis",
           "roundTrip": [
-            { "dateOut": "2026-11-07", "dateIn": "2026-11-12", "label": "12 lis" },
-            { "dateOut": "2026-11-07", "dateIn": "2026-11-13", "label": "13 lis" }
+            {
+              "dateOut": "2026-11-07",
+              "dateIn": "2026-11-12",
+              "label": "12 lis"
+            },
+            {
+              "dateOut": "2026-11-07",
+              "dateIn": "2026-11-13",
+              "label": "13 lis"
+            }
           ]
         }
       ]
@@ -25,17 +33,11 @@
       "dates": [
         {
           "date": "2026-11-12",
-          "label": "12 lis",
-          "roundTrip": [
-            { "dateOut": "2026-11-07", "dateIn": "2026-11-12", "label": "7 lis" }
-          ]
+          "label": "12 lis"
         },
         {
           "date": "2026-11-13",
-          "label": "13 lis",
-          "roundTrip": [
-            { "dateOut": "2026-11-07", "dateIn": "2026-11-13", "label": "7 lis" }
-          ]
+          "label": "13 lis"
         }
       ]
     }
