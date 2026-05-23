@@ -1,9 +1,9 @@
 {
   "currency": "PLN",
   "passengers": {
-    "adults": 1,
+    "adults": 2,
     "teens": 0,
-    "children": 0,
+    "children": 1,
     "infants": 0
   },
   "routes": [
