@@ -185,11 +185,33 @@ async function saveState(state) {
 
 // ── Telegram ────────────────────────────────────────────
 
-async function notify(text) {
+function buildRyanairUrl(from, to, date) {
+  const params = new URLSearchParams({
+    adults: "1",
+    teens: "0",
+    children: "0",
+    infants: "0",
+    dateOut: date,
+    originIata: from,
+    destinationIata: to,
+    isConnectedFlight: "false",
+    isReturn: "false",
+    discount: "0",
+  });
+  return `https://www.ryanair.com/pl/pl/trip/flights/select?${params}`;
+}
+
+async function notify(text, url = null) {
+  const payload = { chat_id: TELEGRAM_CHAT_ID, text };
+  if (url) {
+    payload.reply_markup = {
+      inline_keyboard: [[{ text: "🛒 Kup teraz", url }]],
+    };
+  }
   const res = await jsonPost(
     "api.telegram.org",
     `/bot${TELEGRAM_TOKEN}/sendMessage`,
-    { chat_id: TELEGRAM_CHAT_ID, text },
+    payload,
   );
   if (res.status !== 200)
     throw new Error(`Telegram ${res.status}: ${JSON.stringify(res.data)}`);
@@ -275,8 +297,12 @@ async function main() {
 
       if (msg) {
         console.log(`[${route.key}][${result.date}] → ${msg}`);
+        const url =
+          result.price !== null
+            ? buildRyanairUrl(route.from, route.to, result.date)
+            : null;
         try {
-          await notify(msg);
+          await notify(msg, url);
         } catch (err) {
           console.error(`[${route.key}] Telegram error: ${err.message}`);
         }
@@ -321,6 +347,7 @@ async function report() {
 module.exports = {
   buildLabel,
   buildMessage,
+  buildRyanairUrl,
   CURRENCY,
   fmt,
   PRICE_THRESHOLD,

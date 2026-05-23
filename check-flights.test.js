@@ -6,6 +6,7 @@ const assert = require("node:assert/strict");
 const {
   buildLabel,
   buildMessage,
+  buildRyanairUrl,
   CURRENCY,
   fmt,
 } = require("./check-flights");
@@ -107,6 +108,17 @@ test("buildLabel combines route label and date label", () => {
 
 test("buildLabel returns only route label when dateLabel is null", () => {
   assert.equal(buildLabel("WRO→BGY", null), "WRO→BGY");
+});
+
+// ── buildRyanairUrl tests ────────────────────────────────
+
+test("buildRyanairUrl builds correct URL for a given route and date", () => {
+  const url = buildRyanairUrl("WRO", "BGY", "2026-11-07");
+  assert.ok(url.startsWith("https://www.ryanair.com/pl/pl/trip/flights/select?"));
+  assert.ok(url.includes("originIata=WRO"));
+  assert.ok(url.includes("destinationIata=BGY"));
+  assert.ok(url.includes("dateOut=2026-11-07"));
+  assert.ok(url.includes("adults=1"));
 });
 
 // ── Per-date tracking integration tests ─────────────────
