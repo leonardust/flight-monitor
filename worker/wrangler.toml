@@ -1,0 +1,13 @@
+name = "flight-monitor-bot"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+[vars]
+GH_REPO = "leonardust/flight-monitor"
+GH_REF = "main"
+
+# Secrets (set via: wrangler secret put <NAME>):
+#   TELEGRAM_TOKEN
+#   TELEGRAM_CHAT_ID
+#   TELEGRAM_SECRET  (optional — webhook secret for request verification)
+#   GH_PAT

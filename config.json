@@ -13,7 +13,10 @@
       "from": "BGY",
       "to": "WRO",
       "label": "BGY→WRO",
-      "dates": [{ "date": "2026-11-12", "label": "12 lis" }]
+      "dates": [
+        { "date": "2026-11-12", "label": "12 lis" },
+        { "date": "2026-11-13", "label": "13 lis" }
+      ]
     }
   ]
 }
