@@ -1,0 +1,12 @@
+name = "flight-monitor-bot"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+[vars]
+GH_REPO = "leonardust/flight-monitor"
+GH_REF = "feat/issue-1-config-file-multi-dates"
+
+# Secrets (set via: wrangler secret put <NAME>):
+#   TELEGRAM_TOKEN
+#   TELEGRAM_CHAT_ID
+#   GH_PAT

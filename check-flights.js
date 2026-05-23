@@ -42,7 +42,11 @@ const REQUIRED_ENV = [
   "GH_PAT",
 ];
 if (require.main === module) {
-  const missing = REQUIRED_ENV.filter((k) => !process.env[k]);
+  const _isReport = process.argv.includes("--report");
+  const _requiredEnv = _isReport
+    ? ["TELEGRAM_TOKEN", "TELEGRAM_CHAT_ID"]
+    : REQUIRED_ENV;
+  const missing = _requiredEnv.filter((k) => !process.env[k]);
   if (missing.length > 0) {
     console.error(`Missing env variables: ${missing.join(", ")}`);
     process.exit(1);
@@ -257,50 +261,34 @@ async function main() {
       continue;
     }
 
-    const cheapest = findCheapest(dateResults);
+    if (!state[route.key]) state[route.key] = {};
 
-    if (!state[route.key])
-      state[route.key] = { price: null, date: null, dateLabel: null };
-    const prev = {
-      price: state[route.key].price ?? null,
-      date: state[route.key].date ?? null,
-      dateLabel: state[route.key].dateLabel ?? null,
-    };
+    for (const result of dateResults) {
+      const prevPrice = state[route.key][result.date]?.price ?? null;
+      const newPrice = result.price;
+      const msgLabel = buildLabel(route.label, result.label);
 
-    const newPrice = cheapest?.price ?? null;
-    const newDate = cheapest?.date ?? null;
-    const newDateLabel = cheapest?.label ?? null;
+      console.log(
+        `[${route.key}][${result.date}] prev=${prevPrice} curr=${newPrice}`,
+      );
 
-    const msgLabel = buildLabel(route.label, newDateLabel ?? prev.dateLabel);
+      const msg = buildMessage(msgLabel, prevPrice, newPrice, PRICE_THRESHOLD);
 
-    console.log(
-      `[${route.key}] prev=${prev.price} (${prev.dateLabel}) curr=${newPrice} (${newDateLabel})`,
-    );
-
-    const msg = buildMessage(msgLabel, prev.price, newPrice, PRICE_THRESHOLD);
-    const stateChanged =
-      prev.price !== newPrice ||
-      prev.date !== newDate ||
-      prev.dateLabel !== newDateLabel;
-
-    if (msg) {
-      console.log(`[${route.key}] → ${msg}`);
-      try {
-        await notify(msg);
-      } catch (err) {
-        console.error(`[${route.key}] Telegram error: ${err.message}`);
+      if (prevPrice !== newPrice) {
+        state[route.key][result.date] = { price: newPrice };
+        changed = true;
       }
-    } else {
-      console.log(`[${route.key}] No change.`);
-    }
 
-    if (stateChanged) {
-      state[route.key] = {
-        price: newPrice,
-        date: newDate,
-        dateLabel: newDateLabel,
-      };
-      changed = true;
+      if (msg) {
+        console.log(`[${route.key}][${result.date}] → ${msg}`);
+        try {
+          await notify(msg);
+        } catch (err) {
+          console.error(`[${route.key}] Telegram error: ${err.message}`);
+        }
+      } else {
+        console.log(`[${route.key}][${result.date}] No change.`);
+      }
     }
   }
 
@@ -312,6 +300,31 @@ async function main() {
   }
 }
 
+// ── Report mode ─────────────────────────────────────────
+
+async function report() {
+  const lines = [];
+  for (const route of ROUTES) {
+    for (const dateEntry of route.dates) {
+      const label = buildLabel(route.label, dateEntry.label);
+      try {
+        const price = await fetchPrice({ ...route, date: dateEntry.date });
+        lines.push(
+          price !== null
+            ? `✈️ ${label}: ${fmt(price)} ${CURRENCY}`
+            : `✈️ ${label}: niedostępny`,
+        );
+      } catch (err) {
+        console.error(
+          `[${route.key}] fetch error for ${dateEntry.date}: ${err.message}`,
+        );
+        lines.push(`✈️ ${label}: błąd pobierania`);
+      }
+    }
+  }
+  if (lines.length > 0) await notify(lines.join("\n"));
+}
+
 module.exports = {
   buildLabel,
   buildMessage,
@@ -319,10 +332,12 @@ module.exports = {
   findCheapest,
   fmt,
   PRICE_THRESHOLD,
+  report,
 };
 
 if (require.main === module) {
-  main().catch((err) => {
+  const isReport = process.argv.includes("--report");
+  (isReport ? report : main)().catch((err) => {
     console.error("Fatal:", err);
     process.exit(1);
   });

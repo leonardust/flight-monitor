@@ -153,67 +153,87 @@ test("findCheapest ignores null prices and returns cheapest non-null", () => {
 
 // ── Integration: findCheapest + buildMessage ──────────────────
 
-test("cheapest date disappears, next date becomes cheapest and price rises", () => {
+// ── Per-date tracking integration tests ─────────────────
+
+test("each date generates its own NOWY LOT message independently", () => {
+  const routeState = {};
   const results = [
-    { date: "2026-11-08", label: "8 lis", price: null },
-    { date: "2026-11-09", label: "9 lis", price: 179.99 },
+    { date: "2026-11-12", label: "12 lis", price: 89.99 },
+    { date: "2026-11-13", label: "13 lis", price: 110.0 },
   ];
-  const cheapest = findCheapest(results);
-  assert.deepEqual(cheapest, {
-    date: "2026-11-09",
-    label: "9 lis",
-    price: 179.99,
+  const messages = results.map((result) => {
+    const prevPrice = routeState[result.date]?.price ?? null;
+    return buildMessage(
+      buildLabel("BGY→WRO", result.label),
+      prevPrice,
+      result.price,
+    );
   });
-  assert.equal(
-    buildMessage(buildLabel("WRO→BGY", cheapest.label), 149.99, cheapest.price),
-    `DROŻEJE 📈 WRO→BGY 9 lis: 149.99 → 179.99 ${CURRENCY} (+30.00 ${CURRENCY})`,
-  );
+  assert.equal(messages[0], `NOWY LOT ✈️ BGY→WRO 12 lis: 89.99 ${CURRENCY}`);
+  assert.equal(messages[1], `NOWY LOT ✈️ BGY→WRO 13 lis: 110.00 ${CURRENCY}`);
 });
 
-test("new cheaper date appears and becomes cheapest", () => {
+test("price drop on one date does not affect the other date", () => {
+  const routeState = {
+    "2026-11-12": { price: 89.99 },
+    "2026-11-13": { price: 110.0 },
+  };
   const results = [
-    { date: "2026-11-08", label: "8 lis", price: 199.99 },
-    { date: "2026-11-09", label: "9 lis", price: 149.99 },
+    { date: "2026-11-12", label: "12 lis", price: 75.0 },
+    { date: "2026-11-13", label: "13 lis", price: 110.0 },
   ];
-  const cheapest = findCheapest(results);
-  assert.deepEqual(cheapest, {
-    date: "2026-11-09",
-    label: "9 lis",
-    price: 149.99,
+  const messages = results.map((result) => {
+    const prevPrice = routeState[result.date]?.price ?? null;
+    return buildMessage(
+      buildLabel("BGY→WRO", result.label),
+      prevPrice,
+      result.price,
+    );
   });
   assert.equal(
-    buildMessage(buildLabel("WRO→BGY", cheapest.label), 199.99, cheapest.price),
-    `TANIEJE 📉 WRO→BGY 9 lis: 199.99 → 149.99 ${CURRENCY} (-50.00 ${CURRENCY})`,
+    messages[0],
+    `TANIEJE 📉 BGY→WRO 12 lis: 89.99 → 75.00 ${CURRENCY} (-14.99 ${CURRENCY})`,
   );
+  assert.equal(messages[1], null);
 });
 
-test("all dates become unavailable marks flight as unavailable", () => {
+test("one date becomes unavailable while the other stays available", () => {
+  const routeState = {
+    "2026-11-12": { price: 89.99 },
+    "2026-11-13": { price: 110.0 },
+  };
   const results = [
-    { date: "2026-11-08", label: "8 lis", price: null },
-    { date: "2026-11-09", label: "9 lis", price: null },
+    { date: "2026-11-12", label: "12 lis", price: null },
+    { date: "2026-11-13", label: "13 lis", price: 110.0 },
   ];
-  const cheapest = findCheapest(results);
-  assert.equal(cheapest, null);
-  // prev dateLabel used as fallback in msgLabel
-  assert.equal(
-    buildMessage(buildLabel("WRO→BGY", "8 lis"), 149.99, null),
-    "LOT NIEDOSTĘPNY ❌ WRO→BGY 8 lis",
-  );
-});
-
-test("flight appears for first time on one of many dates", () => {
-  const results = [
-    { date: "2026-11-08", label: "8 lis", price: null },
-    { date: "2026-11-09", label: "9 lis", price: 249.99 },
-  ];
-  const cheapest = findCheapest(results);
-  assert.deepEqual(cheapest, {
-    date: "2026-11-09",
-    label: "9 lis",
-    price: 249.99,
+  const messages = results.map((result) => {
+    const prevPrice = routeState[result.date]?.price ?? null;
+    return buildMessage(
+      buildLabel("BGY→WRO", result.label),
+      prevPrice,
+      result.price,
+    );
   });
-  assert.equal(
-    buildMessage(buildLabel("WRO→BGY", cheapest.label), null, cheapest.price),
-    `NOWY LOT ✈️ WRO→BGY 9 lis: 249.99 ${CURRENCY}`,
-  );
+  assert.equal(messages[0], `LOT NIEDOSTĘPNY ❌ BGY→WRO 12 lis`);
+  assert.equal(messages[1], null);
+});
+
+test("new date added to config appears as NOWY LOT without affecting existing date", () => {
+  const routeState = {
+    "2026-11-12": { price: 89.99 },
+  };
+  const results = [
+    { date: "2026-11-12", label: "12 lis", price: 89.99 },
+    { date: "2026-11-13", label: "13 lis", price: 105.0 },
+  ];
+  const messages = results.map((result) => {
+    const prevPrice = routeState[result.date]?.price ?? null;
+    return buildMessage(
+      buildLabel("BGY→WRO", result.label),
+      prevPrice,
+      result.price,
+    );
+  });
+  assert.equal(messages[0], null);
+  assert.equal(messages[1], `NOWY LOT ✈️ BGY→WRO 13 lis: 105.00 ${CURRENCY}`);
 });
