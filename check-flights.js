@@ -205,12 +205,6 @@ function buildLabel(routeLabel, dateLabel) {
   return dateLabel ? `${routeLabel} ${dateLabel}` : routeLabel;
 }
 
-function findCheapest(dateResults) {
-  const available = dateResults.filter((r) => r.price !== null);
-  if (!available.length) return null;
-  return available.reduce((min, r) => (r.price < min.price ? r : min));
-}
-
 function buildMessage(label, oldPrice, newPrice, threshold = null) {
   if (oldPrice === null && newPrice !== null)
     return `NOWY LOT ✈️ ${label}: ${fmt(newPrice)} ${CURRENCY}`;
@@ -328,7 +322,6 @@ module.exports = {
   buildLabel,
   buildMessage,
   CURRENCY,
-  findCheapest,
   fmt,
   PRICE_THRESHOLD,
   report,

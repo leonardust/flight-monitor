@@ -4,6 +4,11 @@ export default {
   async fetch(request, env) {
     if (request.method !== "POST") return new Response("OK");
 
+    if (env.TELEGRAM_SECRET) {
+      const secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token");
+      if (secret !== env.TELEGRAM_SECRET) return new Response("OK");
+    }
+
     let body;
     try {
       body = await request.json();
@@ -20,10 +25,14 @@ export default {
     if (chatId !== String(env.TELEGRAM_CHAT_ID)) return new Response("OK");
 
     if (COMMANDS.includes(text)) {
-      await Promise.all([
-        triggerReport(env),
-        sendTelegram(env, chatId, "🔍 Sprawdzam ceny, wyniki za chwilę…"),
-      ]);
+      try {
+        await Promise.all([
+          triggerReport(env),
+          sendTelegram(env, chatId, "🔍 Sprawdzam ceny, wyniki za chwilę…"),
+        ]);
+      } catch (err) {
+        console.error(`Command handler error: ${err.message}`);
+      }
     }
 
     return new Response("OK");
@@ -51,9 +60,16 @@ async function triggerReport(env) {
 }
 
 async function sendTelegram(env, chatId, text) {
-  await fetch(`https://api.telegram.org/bot${env.TELEGRAM_TOKEN}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chat_id: chatId, text }),
-  });
+  const res = await fetch(
+    `https://api.telegram.org/bot${env.TELEGRAM_TOKEN}/sendMessage`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text }),
+    },
+  );
+  if (!res.ok) {
+    const body = await res.text();
+    console.error(`Telegram sendMessage failed: ${res.status} ${body}`);
+  }
 }

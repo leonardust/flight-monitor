@@ -7,7 +7,6 @@ const {
   buildLabel,
   buildMessage,
   CURRENCY,
-  findCheapest,
   fmt,
 } = require("./check-flights");
 
@@ -109,49 +108,6 @@ test("buildLabel combines route label and date label", () => {
 test("buildLabel returns only route label when dateLabel is null", () => {
   assert.equal(buildLabel("WRO→BGY", null), "WRO→BGY");
 });
-
-// ── findCheapest tests ──────────────────────────────
-
-test("findCheapest returns null when all prices are null", () => {
-  assert.equal(
-    findCheapest([
-      { date: "2026-11-08", label: "8 lis", price: null },
-      { date: "2026-11-09", label: "9 lis", price: null },
-    ]),
-    null,
-  );
-});
-
-test("findCheapest returns the single entry when there is one date", () => {
-  assert.deepEqual(
-    findCheapest([{ date: "2026-11-08", label: "8 lis", price: 199.99 }]),
-    { date: "2026-11-08", label: "8 lis", price: 199.99 },
-  );
-});
-
-test("findCheapest returns the cheapest entry when there are multiple dates", () => {
-  assert.deepEqual(
-    findCheapest([
-      { date: "2026-11-08", label: "8 lis", price: 199.99 },
-      { date: "2026-11-09", label: "9 lis", price: 149.99 },
-      { date: "2026-11-10", label: "10 lis", price: 179.99 },
-    ]),
-    { date: "2026-11-09", label: "9 lis", price: 149.99 },
-  );
-});
-
-test("findCheapest ignores null prices and returns cheapest non-null", () => {
-  assert.deepEqual(
-    findCheapest([
-      { date: "2026-11-08", label: "8 lis", price: null },
-      { date: "2026-11-09", label: "9 lis", price: 149.99 },
-      { date: "2026-11-10", label: "10 lis", price: null },
-    ]),
-    { date: "2026-11-09", label: "9 lis", price: 149.99 },
-  );
-});
-
-// ── Integration: findCheapest + buildMessage ──────────────────
 
 // ── Per-date tracking integration tests ─────────────────
 

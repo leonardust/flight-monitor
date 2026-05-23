@@ -15,6 +15,9 @@ jobs:
         with:
           node-version: lts/*
 
+      - name: Run tests
+        run: node --test
+
       - name: Send flight report
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
