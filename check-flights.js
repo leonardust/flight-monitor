@@ -290,8 +290,10 @@ function buildMessage(
 }
 
 function buildEventHeader(label, oldPrice, newPrice) {
-  if (oldPrice === null && newPrice !== null) return `NOWY LOT \u2708\ufe0f ${label}`;
-  if (oldPrice !== null && newPrice === null) return `LOT NIEDOST\u0118PNY \u274c ${label}`;
+  if (oldPrice === null && newPrice !== null)
+    return `NOWY LOT \u2708\ufe0f ${label}`;
+  if (oldPrice !== null && newPrice === null)
+    return `LOT NIEDOST\u0118PNY \u274c ${label}`;
   if (newPrice !== null && oldPrice !== null && newPrice < oldPrice)
     return `TANIEJE \ud83d\udcc9 ${label}`;
   if (newPrice !== null && oldPrice !== null && newPrice > oldPrice)
@@ -299,9 +301,18 @@ function buildEventHeader(label, oldPrice, newPrice) {
   return label;
 }
 
-async function buildPriceNotification(label, oldPrice, newPrice, result, route) {
+async function buildPriceNotification(
+  label,
+  oldPrice,
+  newPrice,
+  result,
+  route,
+) {
   const totalPax =
-    PASSENGERS.adults + PASSENGERS.teens + PASSENGERS.children + PASSENGERS.infants;
+    PASSENGERS.adults +
+    PASSENGERS.teens +
+    PASSENGERS.children +
+    PASSENGERS.infants;
   const lines = [buildEventHeader(label, oldPrice, newPrice)];
 
   if (newPrice !== null) {
@@ -332,10 +343,14 @@ async function buildPriceNotification(label, oldPrice, newPrice, result, route) 
             `\u2194 ${result.label}\u2192${rt.label}: <a href="${rtUrl}">${rtTotal} ${CURRENCY}</a>`,
           );
         } else {
-          lines.push(`\u2194 ${result.label}\u2192${rt.label}: <a href="${rtUrl}">sprawd\u017a</a>`);
+          lines.push(
+            `\u2194 ${result.label}\u2192${rt.label}: <a href="${rtUrl}">sprawd\u017a</a>`,
+          );
         }
       } catch {
-        lines.push(`\u2194 ${result.label}\u2192${rt.label}: <a href="${rtUrl}">sprawd\u017a</a>`);
+        lines.push(
+          `\u2194 ${result.label}\u2192${rt.label}: <a href="${rtUrl}">sprawd\u017a</a>`,
+        );
       }
     }
   }
@@ -435,7 +450,10 @@ async function main() {
 
 async function report() {
   const totalPax =
-    PASSENGERS.adults + PASSENGERS.teens + PASSENGERS.children + PASSENGERS.infants;
+    PASSENGERS.adults +
+    PASSENGERS.teens +
+    PASSENGERS.children +
+    PASSENGERS.infants;
   const sections = [];
 
   for (const route of ROUTES) {
@@ -444,12 +462,16 @@ async function report() {
       try {
         const price = await fetchPrice({ ...route, date: dateEntry.date });
         if (price !== null) {
-          const oneWayUrl = buildRyanairUrl(route.from, route.to, dateEntry.date);
+          const oneWayUrl = buildRyanairUrl(
+            route.from,
+            route.to,
+            dateEntry.date,
+          );
           const lines = [
             `\u2708\ufe0f ${label}`,
             `\u2192 <a href="${oneWayUrl}">${fmt(price * totalPax)} ${CURRENCY}</a>`,
           ];
-          for (const rt of (dateEntry.roundTrip ?? [])) {
+          for (const rt of dateEntry.roundTrip ?? []) {
             const rtUrl = buildRyanairRoundTripUrl(rt.dateOut, rt.dateIn);
             try {
               const inboundPrice = await fetchPrice({
@@ -463,10 +485,14 @@ async function report() {
                   `\u2194 ${dateEntry.label}\u2192${rt.label}: <a href="${rtUrl}">${rtTotal} ${CURRENCY}</a>`,
                 );
               } else {
-                lines.push(`\u2194 ${dateEntry.label}\u2192${rt.label}: <a href="${rtUrl}">sprawd\u017a</a>`);
+                lines.push(
+                  `\u2194 ${dateEntry.label}\u2192${rt.label}: <a href="${rtUrl}">sprawd\u017a</a>`,
+                );
               }
             } catch {
-              lines.push(`\u2194 ${dateEntry.label}\u2192${rt.label}: <a href="${rtUrl}">sprawd\u017a</a>`);
+              lines.push(
+                `\u2194 ${dateEntry.label}\u2192${rt.label}: <a href="${rtUrl}">sprawd\u017a</a>`,
+              );
             }
           }
           sections.push(lines.join("\n"));
