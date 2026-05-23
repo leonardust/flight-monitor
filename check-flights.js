@@ -265,20 +265,26 @@ function buildLabel(routeLabel, dateLabel) {
   return dateLabel ? `${routeLabel} ${dateLabel}` : routeLabel;
 }
 
-function buildMessage(label, oldPrice, newPrice, threshold = null) {
+function buildMessage(
+  label,
+  oldPrice,
+  newPrice,
+  threshold = null,
+  multiplier = 1,
+) {
   if (oldPrice === null && newPrice !== null)
-    return `NOWY LOT ✈️ ${label}: ${fmt(newPrice)} ${CURRENCY}`;
+    return `NOWY LOT ✈️ ${label}: ${fmt(newPrice * multiplier)} ${CURRENCY}`;
 
   if (oldPrice !== null && newPrice === null)
     return `LOT NIEDOSTĘPNY ❌ ${label}`;
 
   if (newPrice < oldPrice) {
     if (threshold !== null && newPrice >= threshold) return null;
-    return `TANIEJE 📉 ${label}: ${fmt(oldPrice)} → ${fmt(newPrice)} ${CURRENCY} (-${fmt(oldPrice - newPrice)} ${CURRENCY})`;
+    return `TANIEJE 📉 ${label}: ${fmt(oldPrice * multiplier)} → ${fmt(newPrice * multiplier)} ${CURRENCY} (-${fmt((oldPrice - newPrice) * multiplier)} ${CURRENCY})`;
   }
 
   if (newPrice > oldPrice)
-    return `DROŻEJE 📈 ${label}: ${fmt(oldPrice)} → ${fmt(newPrice)} ${CURRENCY} (+${fmt(newPrice - oldPrice)} ${CURRENCY})`;
+    return `DROŻEJE 📈 ${label}: ${fmt(oldPrice * multiplier)} → ${fmt(newPrice * multiplier)} ${CURRENCY} (+${fmt((newPrice - oldPrice) * multiplier)} ${CURRENCY})`;
 
   return null;
 }
@@ -327,7 +333,16 @@ async function main() {
         `[${route.key}][${result.date}] prev=${prevPrice} curr=${newPrice}`,
       );
 
-      const msg = buildMessage(msgLabel, prevPrice, newPrice, PRICE_THRESHOLD);
+      const msg = buildMessage(
+        msgLabel,
+        prevPrice,
+        newPrice,
+        PRICE_THRESHOLD,
+        PASSENGERS.adults +
+          PASSENGERS.teens +
+          PASSENGERS.children +
+          PASSENGERS.infants,
+      );
 
       if (prevPrice !== newPrice) {
         state[route.key][result.date] = { price: newPrice };
@@ -378,12 +393,17 @@ async function report() {
       try {
         const price = await fetchPrice({ ...route, date: dateEntry.date });
         if (price !== null) {
+          const totalPax =
+            PASSENGERS.adults +
+            PASSENGERS.teens +
+            PASSENGERS.children +
+            PASSENGERS.infants;
           const oneWayUrl = buildRyanairUrl(
             route.from,
             route.to,
             dateEntry.date,
           );
-          let line = `✈️ ${label}: <a href="${oneWayUrl}">${fmt(price)} ${CURRENCY}</a>`;
+          let line = `✈️ ${label}: <a href="${oneWayUrl}">${fmt(price * totalPax)} ${CURRENCY}</a>`;
           if (dateEntry.roundTrip && dateEntry.roundTrip.length > 0) {
             const rtLinks = dateEntry.roundTrip.map(
               (rt) =>
