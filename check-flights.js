@@ -489,14 +489,18 @@ async function main() {
       if (prevPrice !== newPrice) {
         state[route.key][result.date] = { price: newPrice };
         changed = true;
-        if (newPrice !== null) {
-          const histKey = `${route.key}_${result.date}`;
-          if (!history[histKey]) {
-            history[histKey] = {
-              label: buildLabel(route.label, result.label),
-              entries: [],
-            };
-          }
+      }
+
+      if (newPrice !== null) {
+        const histKey = `${route.key}_${result.date}`;
+        if (!history[histKey]) {
+          history[histKey] = {
+            label: buildLabel(route.label, result.label),
+            entries: [],
+          };
+        }
+        const lastEntry = history[histKey].entries.at(-1);
+        if (!lastEntry || lastEntry.price !== newPrice) {
           history[histKey].entries.push({
             price: newPrice,
             ts: new Date().toISOString(),
@@ -543,11 +547,11 @@ async function main() {
 
   if (changed) {
     await saveState(state);
-    await saveHistory(history);
     console.log("State saved.");
   } else {
     console.log("No changes.");
   }
+  await saveHistory(history);
 }
 
 // ── Report mode ─────────────────────────────────────────

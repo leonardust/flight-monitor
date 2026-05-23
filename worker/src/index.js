@@ -53,6 +53,12 @@ export default {
       } catch (err) {
         console.error(`Trend command error: ${err.message}`);
       }
+    } else if (text === "/lowest_price") {
+      try {
+        await sendLowestPrices(env, chatId);
+      } catch (err) {
+        console.error(`Lowest price command error: ${err.message}`);
+      }
     }
 
     return new Response("OK");
@@ -299,6 +305,38 @@ async function sendTelegramHtml(env, chatId, html) {
     const body = await res.text();
     console.error(`Telegram sendMessage failed: ${res.status} ${body}`);
   }
+}
+
+async function sendLowestPrices(env, chatId) {
+  let history;
+  try {
+    history = await fetchGistHistory(env);
+  } catch (err) {
+    await sendTelegram(env, chatId, "❌ Błąd pobierania historii.");
+    console.error(`fetchGistHistory error: ${err.message}`);
+    return;
+  }
+
+  const keys = Object.keys(history);
+  if (keys.length === 0) {
+    await sendTelegram(env, chatId, "📊 Brak historii cen.");
+    return;
+  }
+
+  const lines = ["📉 Najniższe ceny w historii:"];
+  for (const key of keys) {
+    const { label, entries } = history[key];
+    if (!entries || entries.length === 0) continue;
+    const lowest = entries.reduce((min, e) => (e.price < min.price ? e : min));
+    const date = new Date(lowest.ts).toLocaleDateString("pl-PL", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+    lines.push(`✈️ ${label}: ${lowest.price.toFixed(2)} PLN (${date})`);
+  }
+
+  await sendTelegram(env, chatId, lines.join("\n"));
 }
 
 async function sendTrendCharts(env, chatId) {
