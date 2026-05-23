@@ -114,7 +114,8 @@ test("buildLabel returns only route label when dateLabel is null", () => {
 // ── buildRyanairUrl tests ────────────────────────────────
 
 test("buildRyanairUrl builds correct URL for a given route and date", () => {
-  const url = buildRyanairUrl("WRO", "BGY", "2026-11-07");
+  const pax = { adults: 1, teens: 0, children: 0, infants: 0 };
+  const url = buildRyanairUrl("WRO", "BGY", "2026-11-07", pax);
   assert.ok(
     url.startsWith("https://www.ryanair.com/pl/pl/trip/flights/select?"),
   );
@@ -126,7 +127,8 @@ test("buildRyanairUrl builds correct URL for a given route and date", () => {
 });
 
 test("buildRyanairRoundTripUrl builds correct round-trip URL", () => {
-  const url = buildRyanairRoundTripUrl("2026-11-07", "2026-11-12");
+  const pax = { adults: 1, teens: 0, children: 0, infants: 0 };
+  const url = buildRyanairRoundTripUrl("2026-11-07", "2026-11-12", pax);
   assert.ok(
     url.startsWith("https://www.ryanair.com/pl/pl/trip/flights/select?"),
   );

@@ -2,6 +2,23 @@ name: Flight Report (On-demand)
 
 on:
   workflow_dispatch:
+    inputs:
+      adults:
+        description: "Dorośli (16+)"
+        required: false
+        default: ""
+      teens:
+        description: "Nastolatkowie (12-15)"
+        required: false
+        default: ""
+      children:
+        description: "Dzieci (2-11)"
+        required: false
+        default: ""
+      infants:
+        description: "Niemowlęta (0-1)"
+        required: false
+        default: ""
 
 jobs:
   report:
@@ -22,4 +39,8 @@ jobs:
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          ADULTS: ${{ inputs.adults }}
+          TEENS: ${{ inputs.teens }}
+          CHILDREN: ${{ inputs.children }}
+          INFANTS: ${{ inputs.infants }}
         run: node check-flights.js --report

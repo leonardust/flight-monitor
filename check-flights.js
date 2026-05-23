@@ -19,12 +19,26 @@ function loadConfig() {
 const config = loadConfig();
 const CURRENCY = config.currency;
 const ROUTES = config.routes;
-const PASSENGERS = config.passengers ?? {
+const _configPassengers = config.passengers ?? {
   adults: 1,
   teens: 0,
   children: 0,
   infants: 0,
 };
+const PASSENGERS = (() => {
+  const e = {
+    adults: parseInt(process.env.ADULTS ?? "", 10),
+    teens: parseInt(process.env.TEENS ?? "", 10),
+    children: parseInt(process.env.CHILDREN ?? "", 10),
+    infants: parseInt(process.env.INFANTS ?? "", 10),
+  };
+  return {
+    adults: isFinite(e.adults) ? e.adults : _configPassengers.adults,
+    teens: isFinite(e.teens) ? e.teens : _configPassengers.teens,
+    children: isFinite(e.children) ? e.children : _configPassengers.children,
+    infants: isFinite(e.infants) ? e.infants : _configPassengers.infants,
+  };
+})();
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN ?? "";
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID ?? "";
