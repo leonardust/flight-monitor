@@ -1,5 +1,11 @@
 {
   "currency": "PLN",
+  "passengers": {
+    "adults": 1,
+    "teens": 0,
+    "children": 0,
+    "infants": 0
+  },
   "routes": [
     {
       "key": "WRO_BGY",

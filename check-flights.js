@@ -19,6 +19,12 @@ function loadConfig() {
 const config = loadConfig();
 const CURRENCY = config.currency;
 const ROUTES = config.routes;
+const PASSENGERS = config.passengers ?? {
+  adults: 1,
+  teens: 0,
+  children: 0,
+  infants: 0,
+};
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN ?? "";
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID ?? "";
@@ -185,12 +191,12 @@ async function saveState(state) {
 
 // ── Telegram ────────────────────────────────────────────
 
-function buildRyanairUrl(from, to, date) {
+function buildRyanairUrl(from, to, date, passengers = PASSENGERS) {
   const params = new URLSearchParams({
-    adults: "1",
-    teens: "0",
-    children: "0",
-    infants: "0",
+    adults: String(passengers.adults ?? 1),
+    teens: String(passengers.teens ?? 0),
+    children: String(passengers.children ?? 0),
+    infants: String(passengers.infants ?? 0),
     dateOut: date,
     originIata: from,
     destinationIata: to,
@@ -201,12 +207,12 @@ function buildRyanairUrl(from, to, date) {
   return `https://www.ryanair.com/pl/pl/trip/flights/select?${params}`;
 }
 
-function buildRyanairRoundTripUrl(dateOut, dateIn) {
+function buildRyanairRoundTripUrl(dateOut, dateIn, passengers = PASSENGERS) {
   const params = new URLSearchParams({
-    adults: "1",
-    teens: "0",
-    children: "0",
-    infants: "0",
+    adults: String(passengers.adults ?? 1),
+    teens: String(passengers.teens ?? 0),
+    children: String(passengers.children ?? 0),
+    infants: String(passengers.infants ?? 0),
     dateOut,
     dateIn,
     originIata: "WRO",
