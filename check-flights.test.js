@@ -7,6 +7,7 @@ const {
   buildLabel,
   buildMessage,
   buildRyanairUrl,
+  buildRyanairRoundTripUrl,
   CURRENCY,
   fmt,
 } = require("./check-flights");
@@ -114,11 +115,26 @@ test("buildLabel returns only route label when dateLabel is null", () => {
 
 test("buildRyanairUrl builds correct URL for a given route and date", () => {
   const url = buildRyanairUrl("WRO", "BGY", "2026-11-07");
-  assert.ok(url.startsWith("https://www.ryanair.com/pl/pl/trip/flights/select?"));
+  assert.ok(
+    url.startsWith("https://www.ryanair.com/pl/pl/trip/flights/select?"),
+  );
   assert.ok(url.includes("originIata=WRO"));
   assert.ok(url.includes("destinationIata=BGY"));
   assert.ok(url.includes("dateOut=2026-11-07"));
   assert.ok(url.includes("adults=1"));
+  assert.ok(url.includes("isReturn=false"));
+});
+
+test("buildRyanairRoundTripUrl builds correct round-trip URL", () => {
+  const url = buildRyanairRoundTripUrl("2026-11-07", "2026-11-12");
+  assert.ok(
+    url.startsWith("https://www.ryanair.com/pl/pl/trip/flights/select?"),
+  );
+  assert.ok(url.includes("originIata=WRO"));
+  assert.ok(url.includes("destinationIata=BGY"));
+  assert.ok(url.includes("dateOut=2026-11-07"));
+  assert.ok(url.includes("dateIn=2026-11-12"));
+  assert.ok(url.includes("isReturn=true"));
 });
 
 // ── Per-date tracking integration tests ─────────────────

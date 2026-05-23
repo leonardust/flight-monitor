@@ -201,11 +201,28 @@ function buildRyanairUrl(from, to, date) {
   return `https://www.ryanair.com/pl/pl/trip/flights/select?${params}`;
 }
 
-async function notify(text, url = null) {
+function buildRyanairRoundTripUrl(dateOut, dateIn) {
+  const params = new URLSearchParams({
+    adults: "1",
+    teens: "0",
+    children: "0",
+    infants: "0",
+    dateOut,
+    dateIn,
+    originIata: "WRO",
+    destinationIata: "BGY",
+    isConnectedFlight: "false",
+    isReturn: "true",
+    discount: "0",
+  });
+  return `https://www.ryanair.com/pl/pl/trip/flights/select?${params}`;
+}
+
+async function notify(text, buttons = []) {
   const payload = { chat_id: TELEGRAM_CHAT_ID, text };
-  if (url) {
+  if (buttons.length > 0) {
     payload.reply_markup = {
-      inline_keyboard: [[{ text: "🛒 Kup teraz", url }]],
+      inline_keyboard: buttons.map((btn) => [btn]),
     };
   }
   const res = await jsonPost(
@@ -261,6 +278,7 @@ async function main() {
           date: dateEntry.date,
           label: dateEntry.label,
           price,
+          roundTrip: dateEntry.roundTrip ?? [],
         });
       } catch (err) {
         fetchErrors += 1;
@@ -297,12 +315,21 @@ async function main() {
 
       if (msg) {
         console.log(`[${route.key}][${result.date}] → ${msg}`);
-        const url =
-          result.price !== null
-            ? buildRyanairUrl(route.from, route.to, result.date)
-            : null;
+        const buttons = [];
+        if (result.price !== null) {
+          buttons.push({
+            text: "🛒 Kup teraz",
+            url: buildRyanairUrl(route.from, route.to, result.date),
+          });
+          for (const rt of result.roundTrip) {
+            buttons.push({
+              text: `🔄 W obie strony (${rt.label})`,
+              url: buildRyanairRoundTripUrl(rt.dateOut, rt.dateIn),
+            });
+          }
+        }
         try {
-          await notify(msg, url);
+          await notify(msg, buttons);
         } catch (err) {
           console.error(`[${route.key}] Telegram error: ${err.message}`);
         }
@@ -348,6 +375,7 @@ module.exports = {
   buildLabel,
   buildMessage,
   buildRyanairUrl,
+  buildRyanairRoundTripUrl,
   CURRENCY,
   fmt,
   PRICE_THRESHOLD,

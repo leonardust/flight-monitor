@@ -6,7 +6,16 @@
       "from": "WRO",
       "to": "BGY",
       "label": "WRO→BGY",
-      "dates": [{ "date": "2026-11-07", "label": "7 lis" }]
+      "dates": [
+        {
+          "date": "2026-11-07",
+          "label": "7 lis",
+          "roundTrip": [
+            { "dateOut": "2026-11-07", "dateIn": "2026-11-12", "label": "12 lis" },
+            { "dateOut": "2026-11-07", "dateIn": "2026-11-13", "label": "13 lis" }
+          ]
+        }
+      ]
     },
     {
       "key": "BGY_WRO",
@@ -14,8 +23,20 @@
       "to": "WRO",
       "label": "BGY→WRO",
       "dates": [
-        { "date": "2026-11-12", "label": "12 lis" },
-        { "date": "2026-11-13", "label": "13 lis" }
+        {
+          "date": "2026-11-12",
+          "label": "12 lis",
+          "roundTrip": [
+            { "dateOut": "2026-11-07", "dateIn": "2026-11-12", "label": "7 lis" }
+          ]
+        },
+        {
+          "date": "2026-11-13",
+          "label": "13 lis",
+          "roundTrip": [
+            { "dateOut": "2026-11-07", "dateIn": "2026-11-13", "label": "7 lis" }
+          ]
+        }
       ]
     }
   ]
