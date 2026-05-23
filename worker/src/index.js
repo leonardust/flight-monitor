@@ -345,7 +345,8 @@ async function sendLowestPrices(env, chatId) {
       year: "numeric",
     });
     const priceStr = lowest.price.toFixed(2).padStart(maxW);
-    lines.push(`      ✈️ ${label} → ${priceStr} PLN (${date})`);
+    lines.push(`✈️ ${label}`);
+    lines.push(`      ${priceStr} PLN (${date})`);
   }
 
   await sendTelegram(env, chatId, lines.join("\n"));
