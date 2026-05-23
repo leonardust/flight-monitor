@@ -289,6 +289,60 @@ function buildMessage(
   return null;
 }
 
+function buildEventHeader(label, oldPrice, newPrice) {
+  if (oldPrice === null && newPrice !== null) return `NOWY LOT \u2708\ufe0f ${label}`;
+  if (oldPrice !== null && newPrice === null) return `LOT NIEDOST\u0118PNY \u274c ${label}`;
+  if (newPrice !== null && oldPrice !== null && newPrice < oldPrice)
+    return `TANIEJE \ud83d\udcc9 ${label}`;
+  if (newPrice !== null && oldPrice !== null && newPrice > oldPrice)
+    return `DRO\u017bEJE \ud83d\udcc8 ${label}`;
+  return label;
+}
+
+async function buildPriceNotification(label, oldPrice, newPrice, result, route) {
+  const totalPax =
+    PASSENGERS.adults + PASSENGERS.teens + PASSENGERS.children + PASSENGERS.infants;
+  const lines = [buildEventHeader(label, oldPrice, newPrice)];
+
+  if (newPrice !== null) {
+    const oneWayUrl = buildRyanairUrl(route.from, route.to, result.date);
+    const newTotal = fmt(newPrice * totalPax);
+    if (oldPrice !== null && oldPrice !== newPrice) {
+      const oldTotal = fmt(oldPrice * totalPax);
+      const diffTotal = fmt(Math.abs(newPrice - oldPrice) * totalPax);
+      const sign = newPrice < oldPrice ? "-" : "+";
+      lines.push(
+        `\u2192 ${oldTotal} \u2192 <a href="${oneWayUrl}">${newTotal} ${CURRENCY}</a> (${sign}${diffTotal} ${CURRENCY})`,
+      );
+    } else {
+      lines.push(`\u2192 <a href="${oneWayUrl}">${newTotal} ${CURRENCY}</a>`);
+    }
+
+    for (const rt of result.roundTrip) {
+      const rtUrl = buildRyanairRoundTripUrl(rt.dateOut, rt.dateIn);
+      try {
+        const inboundPrice = await fetchPrice({
+          from: route.to,
+          to: route.from,
+          date: rt.dateIn,
+        });
+        if (inboundPrice !== null) {
+          const rtTotal = fmt((newPrice + inboundPrice) * totalPax);
+          lines.push(
+            `\u2194 ${result.label}\u2192${rt.label}: <a href="${rtUrl}">${rtTotal} ${CURRENCY}</a>`,
+          );
+        } else {
+          lines.push(`\u2194 ${result.label}\u2192${rt.label}: <a href="${rtUrl}">sprawd\u017a</a>`);
+        }
+      } catch {
+        lines.push(`\u2194 ${result.label}\u2192${rt.label}: <a href="${rtUrl}">sprawd\u017a</a>`);
+      }
+    }
+  }
+
+  return lines.join("\n");
+}
+
 // ── Main ────────────────────────────────────────────────
 
 async function main() {
@@ -350,22 +404,16 @@ async function main() {
       }
 
       if (msg) {
-        console.log(`[${route.key}][${result.date}] → ${msg}`);
-        const buttons = [];
-        if (result.price !== null) {
-          buttons.push({
-            text: "🛒 Kup teraz",
-            url: buildRyanairUrl(route.from, route.to, result.date),
-          });
-          for (const rt of result.roundTrip) {
-            buttons.push({
-              text: `🔄 W obie strony (${rt.label})`,
-              url: buildRyanairRoundTripUrl(rt.dateOut, rt.dateIn),
-            });
-          }
-        }
+        console.log(`[${route.key}][${result.date}] \u2192 ${msg}`);
         try {
-          await notify(msg, buttons);
+          const htmlMsg = await buildPriceNotification(
+            msgLabel,
+            prevPrice,
+            newPrice,
+            result,
+            route,
+          );
+          await notify(htmlMsg, [], "HTML");
         } catch (err) {
           console.error(`[${route.key}] Telegram error: ${err.message}`);
         }
@@ -386,44 +434,55 @@ async function main() {
 // ── Report mode ─────────────────────────────────────────
 
 async function report() {
-  const lines = [];
+  const totalPax =
+    PASSENGERS.adults + PASSENGERS.teens + PASSENGERS.children + PASSENGERS.infants;
+  const sections = [];
+
   for (const route of ROUTES) {
     for (const dateEntry of route.dates) {
       const label = buildLabel(route.label, dateEntry.label);
       try {
         const price = await fetchPrice({ ...route, date: dateEntry.date });
         if (price !== null) {
-          const totalPax =
-            PASSENGERS.adults +
-            PASSENGERS.teens +
-            PASSENGERS.children +
-            PASSENGERS.infants;
-          const oneWayUrl = buildRyanairUrl(
-            route.from,
-            route.to,
-            dateEntry.date,
-          );
-          let line = `✈️ ${label}: <a href="${oneWayUrl}">${fmt(price * totalPax)} ${CURRENCY}</a>`;
-          if (dateEntry.roundTrip && dateEntry.roundTrip.length > 0) {
-            const rtLinks = dateEntry.roundTrip.map(
-              (rt) =>
-                `<a href="${buildRyanairRoundTripUrl(rt.dateOut, rt.dateIn)}">↔ ${rt.label}</a>`,
-            );
-            line += ` | ${rtLinks.join(" | ")}`;
+          const oneWayUrl = buildRyanairUrl(route.from, route.to, dateEntry.date);
+          const lines = [
+            `\u2708\ufe0f ${label}`,
+            `\u2192 <a href="${oneWayUrl}">${fmt(price * totalPax)} ${CURRENCY}</a>`,
+          ];
+          for (const rt of (dateEntry.roundTrip ?? [])) {
+            const rtUrl = buildRyanairRoundTripUrl(rt.dateOut, rt.dateIn);
+            try {
+              const inboundPrice = await fetchPrice({
+                from: route.to,
+                to: route.from,
+                date: rt.dateIn,
+              });
+              if (inboundPrice !== null) {
+                const rtTotal = fmt((price + inboundPrice) * totalPax);
+                lines.push(
+                  `\u2194 ${dateEntry.label}\u2192${rt.label}: <a href="${rtUrl}">${rtTotal} ${CURRENCY}</a>`,
+                );
+              } else {
+                lines.push(`\u2194 ${dateEntry.label}\u2192${rt.label}: <a href="${rtUrl}">sprawd\u017a</a>`);
+              }
+            } catch {
+              lines.push(`\u2194 ${dateEntry.label}\u2192${rt.label}: <a href="${rtUrl}">sprawd\u017a</a>`);
+            }
           }
-          lines.push(line);
+          sections.push(lines.join("\n"));
         } else {
-          lines.push(`✈️ ${label}: niedostępny`);
+          sections.push(`\u2708\ufe0f ${label}: niedost\u0119pny`);
         }
       } catch (err) {
         console.error(
           `[${route.key}] fetch error for ${dateEntry.date}: ${err.message}`,
         );
-        lines.push(`✈️ ${label}: błąd pobierania`);
+        sections.push(`\u2708\ufe0f ${label}: b\u0142\u0105d pobierania`);
       }
     }
   }
-  if (lines.length > 0) await notify(lines.join("\n"), [], "HTML");
+
+  if (sections.length > 0) await notify(sections.join("\n\n"), [], "HTML");
 }
 module.exports = {
   buildLabel,
