@@ -324,7 +324,6 @@ async function report() {
   }
   if (lines.length > 0) await notify(lines.join("\n"));
 }
-
 module.exports = {
   buildLabel,
   buildMessage,
