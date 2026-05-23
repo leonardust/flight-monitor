@@ -202,7 +202,42 @@ async function saveState(state) {
   );
   if (res.status !== 200) throw new Error(`Gist write ${res.status}`);
 }
+async function loadHistory() {
+  const res = await requestWithRetry({
+    hostname: "api.github.com",
+    path: `/gists/${GIST_ID}`,
+    method: "GET",
+    headers: gistHeaders,
+  });
+  if (res.status !== 200) throw new Error(`Gist read ${res.status}`);
+  const file = res.data.files["history.json"];
+  if (!file) return {};
+  try {
+    return JSON.parse(file.content);
+  } catch {
+    return {};
+  }
+}
 
+async function saveHistory(history) {
+  const body = JSON.stringify({
+    files: { "history.json": { content: JSON.stringify(history, null, 2) } },
+  });
+  const res = await requestWithRetry(
+    {
+      hostname: "api.github.com",
+      path: `/gists/${GIST_ID}`,
+      method: "PATCH",
+      headers: {
+        ...gistHeaders,
+        "Content-Type": "application/json",
+        "Content-Length": Buffer.byteLength(body),
+      },
+    },
+    body,
+  );
+  if (res.status !== 200) throw new Error(`Gist write ${res.status}`);
+}
 // ── Telegram ────────────────────────────────────────────
 
 function buildRyanairUrl(from, to, date, passengers = PASSENGERS) {
@@ -253,6 +288,10 @@ async function notify(text, buttons = [], parseMode = null) {
   );
   if (res.status !== 200)
     throw new Error(`Telegram ${res.status}: ${JSON.stringify(res.data)}`);
+}
+
+function escapeHtml(str) {
+  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 // ── Message builder ─────────────────────────────────────
@@ -358,10 +397,44 @@ async function buildPriceNotification(
   return lines.join("\n");
 }
 
+function buildAsciiChart(label, entries, n = 10) {
+  const slice = entries.slice(-n);
+  if (slice.length < 2) return null;
+
+  const prices = slice.map((e) => e.price);
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  const header = `${label} - ostatnie ${slice.length} cen (${CURRENCY}):`;
+
+  if (min === max) {
+    return `${header}\n${String(Math.round(max))} | ${"* ".repeat(slice.length).trimEnd()}`;
+  }
+
+  const ROWS = 5;
+  const step = (max - min) / (ROWS - 1);
+  const levels = Array.from({ length: ROWS }, (_, i) =>
+    Math.round(max - step * i),
+  );
+  const labelWidth = Math.max(...levels.map((l) => String(l).length));
+
+  const lines = [header];
+  for (const level of levels) {
+    const cols = slice.map((e) => {
+      const closest = levels.reduce((prev, curr) =>
+        Math.abs(curr - e.price) < Math.abs(prev - e.price) ? curr : prev,
+      );
+      return closest === level ? "*" : " ";
+    });
+    lines.push(`${String(level).padStart(labelWidth)} | ${cols.join("  ")}`);
+  }
+  return lines.join("\n");
+}
+
 // ── Main ────────────────────────────────────────────────
 
 async function main() {
   const state = await loadState();
+  const history = await loadHistory();
   let changed = false;
 
   for (const route of ROUTES) {
@@ -416,6 +489,19 @@ async function main() {
       if (prevPrice !== newPrice) {
         state[route.key][result.date] = { price: newPrice };
         changed = true;
+        if (newPrice !== null) {
+          const histKey = `${route.key}_${result.date}`;
+          if (!history[histKey]) {
+            history[histKey] = {
+              label: buildLabel(route.label, result.label),
+              entries: [],
+            };
+          }
+          history[histKey].entries.push({
+            price: newPrice,
+            ts: new Date().toISOString(),
+          });
+        }
       }
 
       if (msg) {
@@ -432,6 +518,23 @@ async function main() {
         } catch (err) {
           console.error(`[${route.key}] Telegram error: ${err.message}`);
         }
+        if (newPrice !== null) {
+          const histKey = `${route.key}_${result.date}`;
+          const routeHistory = history[histKey];
+          if (routeHistory && routeHistory.entries.length >= 2) {
+            const chart = buildAsciiChart(
+              routeHistory.label,
+              routeHistory.entries,
+            );
+            if (chart) {
+              try {
+                await notify(`<pre>${escapeHtml(chart)}</pre>`, [], "HTML");
+              } catch (err) {
+                console.error(`[${route.key}] Chart error: ${err.message}`);
+              }
+            }
+          }
+        }
       } else {
         console.log(`[${route.key}][${result.date}] No change.`);
       }
@@ -440,6 +543,7 @@ async function main() {
 
   if (changed) {
     await saveState(state);
+    await saveHistory(history);
     console.log("State saved.");
   } else {
     console.log("No changes.");
@@ -511,6 +615,7 @@ async function report() {
   if (sections.length > 0) await notify(sections.join("\n\n"), [], "HTML");
 }
 module.exports = {
+  buildAsciiChart,
   buildLabel,
   buildMessage,
   buildRyanairUrl,

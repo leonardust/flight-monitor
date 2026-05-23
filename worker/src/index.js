@@ -47,6 +47,12 @@ export default {
       } catch (err) {
         console.error(`Command handler error: ${err.message}`);
       }
+    } else if (text === "/trend") {
+      try {
+        await sendTrendCharts(env, chatId);
+      } catch (err) {
+        console.error(`Trend command error: ${err.message}`);
+      }
     }
 
     return new Response("OK");
@@ -225,5 +231,107 @@ async function sendTelegramWithKeyboard(env, chatId, text, keyboard) {
   if (!res.ok) {
     const body = await res.text();
     console.error(`Telegram sendMessage failed: ${res.status} ${body}`);
+  }
+}
+
+function escapeHtml(str) {
+  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function buildAsciiChart(label, entries, n = 10) {
+  const slice = entries.slice(-n);
+  if (slice.length < 2) return null;
+
+  const prices = slice.map((e) => e.price);
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  const header = `${label} - ostatnie ${slice.length} cen:`;
+
+  if (min === max) {
+    return `${header}\n${String(Math.round(max))} | ${"* ".repeat(slice.length).trimEnd()}`;
+  }
+
+  const ROWS = 5;
+  const step = (max - min) / (ROWS - 1);
+  const levels = Array.from({ length: ROWS }, (_, i) =>
+    Math.round(max - step * i),
+  );
+  const labelWidth = Math.max(...levels.map((l) => String(l).length));
+
+  const lines = [header];
+  for (const level of levels) {
+    const cols = slice.map((e) => {
+      const closest = levels.reduce((prev, curr) =>
+        Math.abs(curr - e.price) < Math.abs(prev - e.price) ? curr : prev,
+      );
+      return closest === level ? "*" : " ";
+    });
+    lines.push(`${String(level).padStart(labelWidth)} | ${cols.join("  ")}`);
+  }
+  return lines.join("\n");
+}
+
+async function fetchGistHistory(env) {
+  const res = await fetch(`https://api.github.com/gists/${env.GIST_ID}`, {
+    headers: {
+      Authorization: `token ${env.GH_PAT}`,
+      Accept: "application/vnd.github.v3+json",
+      "User-Agent": "flight-monitor-bot",
+    },
+  });
+  if (!res.ok) throw new Error(`Gist read ${res.status}`);
+  const gist = await res.json();
+  const file = gist.files["history.json"];
+  if (!file) return {};
+  return JSON.parse(file.content);
+}
+
+async function sendTelegramHtml(env, chatId, html) {
+  const res = await fetch(
+    `https://api.telegram.org/bot${env.TELEGRAM_TOKEN}/sendMessage`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text: html, parse_mode: "HTML" }),
+    },
+  );
+  if (!res.ok) {
+    const body = await res.text();
+    console.error(`Telegram sendMessage failed: ${res.status} ${body}`);
+  }
+}
+
+async function sendTrendCharts(env, chatId) {
+  let history;
+  try {
+    history = await fetchGistHistory(env);
+  } catch (err) {
+    await sendTelegram(env, chatId, "❌ Błąd pobierania historii.");
+    console.error(`fetchGistHistory error: ${err.message}`);
+    return;
+  }
+
+  const keys = Object.keys(history);
+  if (keys.length === 0) {
+    await sendTelegram(env, chatId, "📊 Brak historii cen.");
+    return;
+  }
+
+  let sent = 0;
+  for (const key of keys) {
+    const { label, entries } = history[key];
+    const chart = buildAsciiChart(label, entries);
+    if (chart) {
+      await sendTelegramHtml(env, chatId, `<pre>${escapeHtml(chart)}</pre>`);
+      sent++;
+    }
+  }
+
+  if (sent === 0) {
+    await sendTelegram(
+      env,
+      chatId,
+      "📊 Za mało danych do wykresu (min. 2 pomiary).",
+    );
   }
 }
