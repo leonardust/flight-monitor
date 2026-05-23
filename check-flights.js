@@ -218,8 +218,9 @@ function buildRyanairRoundTripUrl(dateOut, dateIn) {
   return `https://www.ryanair.com/pl/pl/trip/flights/select?${params}`;
 }
 
-async function notify(text, buttons = []) {
+async function notify(text, buttons = [], parseMode = null) {
   const payload = { chat_id: TELEGRAM_CHAT_ID, text };
+  if (parseMode) payload.parse_mode = parseMode;
   if (buttons.length > 0) {
     payload.reply_markup = {
       inline_keyboard: buttons.map((btn) => [btn]),
@@ -356,11 +357,24 @@ async function report() {
       const label = buildLabel(route.label, dateEntry.label);
       try {
         const price = await fetchPrice({ ...route, date: dateEntry.date });
-        lines.push(
-          price !== null
-            ? `✈️ ${label}: ${fmt(price)} ${CURRENCY}`
-            : `✈️ ${label}: niedostępny`,
-        );
+        if (price !== null) {
+          const oneWayUrl = buildRyanairUrl(
+            route.from,
+            route.to,
+            dateEntry.date,
+          );
+          let line = `✈️ ${label}: <a href="${oneWayUrl}">${fmt(price)} ${CURRENCY}</a>`;
+          if (dateEntry.roundTrip && dateEntry.roundTrip.length > 0) {
+            const rtLinks = dateEntry.roundTrip.map(
+              (rt) =>
+                `<a href="${buildRyanairRoundTripUrl(rt.dateOut, rt.dateIn)}">↔ ${rt.label}</a>`,
+            );
+            line += ` | ${rtLinks.join(" | ")}`;
+          }
+          lines.push(line);
+        } else {
+          lines.push(`✈️ ${label}: niedostępny`);
+        }
       } catch (err) {
         console.error(
           `[${route.key}] fetch error for ${dateEntry.date}: ${err.message}`,
@@ -369,7 +383,7 @@ async function report() {
       }
     }
   }
-  if (lines.length > 0) await notify(lines.join("\n"));
+  if (lines.length > 0) await notify(lines.join("\n"), [], "HTML");
 }
 module.exports = {
   buildLabel,
