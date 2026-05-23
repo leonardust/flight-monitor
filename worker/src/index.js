@@ -336,7 +336,6 @@ async function sendLowestPrices(env, chatId) {
     return;
   }
 
-  const maxW = Math.max(...items.map((i) => i.lowest.price.toFixed(2).length));
   const lines = ["📉 Najniższe ceny w historii:"];
   for (const { label, lowest } of items) {
     const date = new Date(lowest.ts).toLocaleDateString("pl-PL", {
@@ -344,9 +343,16 @@ async function sendLowestPrices(env, chatId) {
       month: "2-digit",
       year: "numeric",
     });
-    const priceStr = lowest.price.toFixed(2).padStart(maxW);
-    lines.push(`✈️ ${label}`);
-    lines.push(`      ${priceStr} PLN (${date})`);
+    const spaceIdx = label.indexOf(" ");
+    const routePart =
+      spaceIdx >= 0 ? label.slice(0, spaceIdx) : label;
+    const datePart = spaceIdx >= 0 ? label.slice(spaceIdx + 1) : "";
+    const routeFormatted = routePart.replace("→", " → ");
+    lines.push(`✈️ ${routeFormatted}`);
+    const priceLine = datePart
+      ? `${datePart} - ${lowest.price.toFixed(2)} PLN (${date})`
+      : `${lowest.price.toFixed(2)} PLN (${date})`;
+    lines.push(priceLine);
   }
 
   await sendTelegram(env, chatId, lines.join("\n"));
