@@ -563,11 +563,11 @@ async function report() {
     PASSENGERS.children +
     PASSENGERS.infants;
   const parts = [];
-  const rtLines = [];
+  const rtEntries = [];
 
   for (const route of ROUTES) {
     const routeLabel = `${route.from} \u2192 ${route.to}`;
-    const dateLines = [];
+    const results = [];
 
     for (const dateEntry of route.dates) {
       let price = null;
@@ -578,13 +578,27 @@ async function report() {
           `[${route.key}] fetch error for ${dateEntry.date}: ${err.message}`,
         );
       }
+      results.push({ dateEntry, price });
+    }
+
+    const maxW = Math.max(
+      0,
+      ...results
+        .filter((r) => r.price !== null)
+        .map((r) => fmt(r.price * totalPax).length),
+    );
+
+    const dateLines = [];
+    for (const { dateEntry, price } of results) {
       const oneWayUrl = buildRyanairUrl(route.from, route.to, dateEntry.date);
       if (price !== null) {
+        const priceStr = fmt(price * totalPax).padStart(maxW);
         dateLines.push(
-          `${dateEntry.label} \u2192 <a href="${oneWayUrl}">${fmt(price * totalPax)} ${CURRENCY}</a>`,
+          `      ${dateEntry.label} \u2192 <a href="${oneWayUrl}">${priceStr} ${CURRENCY}</a>`,
         );
         for (const rt of dateEntry.roundTrip ?? []) {
           const rtUrl = buildRyanairRoundTripUrl(rt.dateOut, rt.dateIn);
+          let rtTotal = null;
           try {
             const inboundPrice = await fetchPrice({
               from: route.to,
@@ -592,23 +606,13 @@ async function report() {
               date: rt.dateIn,
             });
             if (inboundPrice !== null) {
-              const rtTotal = fmt((price + inboundPrice) * totalPax);
-              rtLines.push(
-                `${dateEntry.label} \u2192 ${rt.label}: <a href="${rtUrl}">${rtTotal} ${CURRENCY}</a>`,
-              );
-            } else {
-              rtLines.push(
-                `${dateEntry.label} \u2192 ${rt.label}: <a href="${rtUrl}">sprawd\u017a</a>`,
-              );
+              rtTotal = (price + inboundPrice) * totalPax;
             }
-          } catch {
-            rtLines.push(
-              `${dateEntry.label} \u2192 ${rt.label}: <a href="${rtUrl}">sprawd\u017a</a>`,
-            );
-          }
+          } catch {}
+          rtEntries.push({ dateEntry, rt, rtUrl, rtTotal });
         }
       } else {
-        dateLines.push(`${dateEntry.label} \u2192 niedost\u0119pny`);
+        dateLines.push(`      ${dateEntry.label} \u2192 niedost\u0119pny`);
       }
     }
 
@@ -617,7 +621,20 @@ async function report() {
     }
   }
 
-  if (rtLines.length > 0) {
+  if (rtEntries.length > 0) {
+    const maxRtW = Math.max(
+      0,
+      ...rtEntries
+        .filter((e) => e.rtTotal !== null)
+        .map((e) => fmt(e.rtTotal).length),
+    );
+    const rtLines = rtEntries.map(({ dateEntry, rt, rtUrl, rtTotal }) => {
+      if (rtTotal !== null) {
+        const priceStr = fmt(rtTotal).padStart(maxRtW);
+        return `      ${dateEntry.label} \u2192 ${rt.label}: <a href="${rtUrl}">${priceStr} ${CURRENCY}</a>`;
+      }
+      return `      ${dateEntry.label} \u2192 ${rt.label}: <a href="${rtUrl}">sprawd\u017a</a>`;
+    });
     const rtRoute = ROUTES.find((r) =>
       r.dates.some((d) => d.roundTrip?.length),
     );

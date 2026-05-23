@@ -323,17 +323,29 @@ async function sendLowestPrices(env, chatId) {
     return;
   }
 
-  const lines = ["📉 Najniższe ceny w historii:"];
+  const items = [];
   for (const key of keys) {
     const { label, entries } = history[key];
     if (!entries || entries.length === 0) continue;
     const lowest = entries.reduce((min, e) => (e.price < min.price ? e : min));
+    items.push({ label, lowest });
+  }
+
+  if (items.length === 0) {
+    await sendTelegram(env, chatId, "📊 Brak danych.");
+    return;
+  }
+
+  const maxW = Math.max(...items.map((i) => i.lowest.price.toFixed(2).length));
+  const lines = ["📉 Najniższe ceny w historii:"];
+  for (const { label, lowest } of items) {
     const date = new Date(lowest.ts).toLocaleDateString("pl-PL", {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
     });
-    lines.push(`✈️ ${label}: ${lowest.price.toFixed(2)} PLN (${date})`);
+    const priceStr = lowest.price.toFixed(2).padStart(maxW);
+    lines.push(`      ✈️ ${label} → ${priceStr} PLN (${date})`);
   }
 
   await sendTelegram(env, chatId, lines.join("\n"));
