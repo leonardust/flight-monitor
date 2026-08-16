@@ -1,4 +1,6 @@
 const COMMANDS = ["/sprawdz", "/check"];
+const ADD_ROUTE_COMMAND = "/dodaj_trasę";
+const HELP_COMMAND = "/help";
 
 export default {
   async fetch(request, env) {
@@ -59,6 +61,42 @@ export default {
         await sendLowestPrices(env, chatId);
       } catch (err) {
         console.error(`Lowest price command error: ${err.message}`);
+      }
+    } else if (text === ADD_ROUTE_COMMAND) {
+      try {
+        await sendTelegramHtml(
+          env,
+          chatId,
+          "✈️ Dodaj nową trasę w formacie:\n<code>KOD_Z KOD_DO DATA_WYLOTU DATA_POWROTU</code>\n\nPrzykład:\n<code>WRO ATH 2027-01-20 2027-01-27</code>\n\nJeśli brak powrotu, podaj tylko:\n<code>WRO ATH 2027-01-20</code>",
+        );
+      } catch (err) {
+        console.error(`Add route command error: ${err.message}`);
+      }
+    } else if (isRouteFormat(text)) {
+      try {
+        const result = await addRouteToConfig(env, text);
+        if (result.success) {
+          await sendTelegram(
+            env,
+            chatId,
+            `✅ Trasę dodano!\n\n${result.route.label}\nDaty: ${result.route.dates.map((d) => d.label).join(", ")}`,
+          );
+        } else {
+          await sendTelegram(env, chatId, `❌ Błąd: ${result.error}`);
+        }
+      } catch (err) {
+        console.error(`Add route parsing error: ${err.message}`);
+        await sendTelegram(env, chatId, `❌ Błąd przetwarzania: ${err.message}`);
+      }
+    } else if (text === HELP_COMMAND) {
+      try {
+        await sendTelegramHtml(
+          env,
+          chatId,
+          `📋 Dostępne komendy:\n\n<b>/sprawdz</b> - Sprawdź cenę dla wybranej trasy\n<b>/dodaj_trasę</b> - Dodaj nową trasę do monitorowania\n<b>/trend</b> - Wykresy trendów cen\n<b>/lowest_price</b> - Najniższe ceny w historii`,
+        );
+      } catch (err) {
+        console.error(`Help command error: ${err.message}`);
       }
     }
 
@@ -181,6 +219,155 @@ async function handleCallbackQuery(env, chatId, data, callbackQueryId) {
   }
 
   await answerCallbackQuery(env, callbackQueryId);
+}
+
+function isRouteFormat(text) {
+  const parts = text.split(/\s+/);
+  return (
+    (parts.length === 3 || parts.length === 4) &&
+    /^[A-Z]{3}$/.test(parts[0]) &&
+    /^[A-Z]{3}$/.test(parts[1]) &&
+    /^\d{4}-\d{2}-\d{2}$/.test(parts[2]) &&
+    (parts.length === 3 || /^\d{4}-\d{2}-\d{2}$/.test(parts[3]))
+  );
+}
+
+async function addRouteToConfig(env, text) {
+  const parts = text.split(/\s+/);
+  const from = parts[0];
+  const to = parts[1];
+  const dateOut = parts[2];
+  const dateIn = parts[3] ?? null;
+
+  const config = await loadConfigFromRepo(env);
+
+  // Validate dates
+  if (isNaN(new Date(dateOut).getTime())) {
+    return { success: false, error: "Nieprawidłowa data wylotu" };
+  }
+  if (dateIn && isNaN(new Date(dateIn).getTime())) {
+    return { success: false, error: "Nieprawidłowa data powrotu" };
+  }
+
+  // Format date labels (e.g., "2027-01-20" → "20 sty")
+  const formatDateLabel = (dateStr) => {
+    const date = new Date(dateStr + "T00:00:00Z");
+    return date.toLocaleDateString("pl-PL", {
+      day: "2-digit",
+      month: "short",
+    });
+  };
+
+  const routeKey = `${from}_${to}`;
+  const routeLabel = `${from}→${to}`;
+  const dateLabel = formatDateLabel(dateOut);
+
+  // Check if route already exists
+  const existingRoute = config.routes.find((r) => r.key === routeKey);
+
+  if (existingRoute) {
+    // Add date to existing route
+    const existingDate = existingRoute.dates.find((d) => d.date === dateOut);
+    if (existingDate) {
+      return {
+        success: false,
+        error: `Trasa ${routeLabel} na dzień ${dateLabel} już istnieje`,
+      };
+    }
+
+    const newDate = {
+      date: dateOut,
+      label: dateLabel,
+    };
+
+    if (dateIn) {
+      newDate.roundTrip = [
+        {
+          dateOut,
+          dateIn,
+          label: formatDateLabel(dateIn),
+        },
+      ];
+    }
+
+    existingRoute.dates.push(newDate);
+  } else {
+    // Create new route
+    const newDate = {
+      date: dateOut,
+      label: dateLabel,
+    };
+
+    if (dateIn) {
+      newDate.roundTrip = [
+        {
+          dateOut,
+          dateIn,
+          label: formatDateLabel(dateIn),
+        },
+      ];
+    }
+
+    config.routes.push({
+      key: routeKey,
+      from,
+      to,
+      label: routeLabel,
+      dates: [newDate],
+    });
+  }
+
+  // Save config to repo
+  await saveConfigToRepo(env, config);
+
+  // Return the route that was added/updated
+  const route = config.routes.find((r) => r.key === routeKey);
+  return { success: true, route };
+}
+
+async function saveConfigToRepo(env, config) {
+  // Get current file SHA for update
+  const getRes = await fetch(
+    `https://api.github.com/repos/${env.GH_REPO}/contents/config.json`,
+    {
+      headers: {
+        Authorization: `token ${env.GH_PAT}`,
+        Accept: "application/vnd.github.v3+json",
+        "User-Agent": "flight-monitor-bot",
+      },
+    },
+  );
+
+  if (!getRes.ok) throw new Error(`Failed to fetch config: ${getRes.status}`);
+  const fileData = await getRes.json();
+  const sha = fileData.sha;
+
+  // Update file with base64 encoded content
+  const configJson = JSON.stringify(config, null, 2);
+  const base64Content = btoa(unescape(encodeURIComponent(configJson)));
+
+  const updateRes = await fetch(
+    `https://api.github.com/repos/${env.GH_REPO}/contents/config.json`,
+    {
+      method: "PUT",
+      headers: {
+        Authorization: `token ${env.GH_PAT}`,
+        Accept: "application/vnd.github.v3+json",
+        "Content-Type": "application/json",
+        "User-Agent": "flight-monitor-bot",
+      },
+      body: JSON.stringify({
+        message: `Add route via Telegram bot`,
+        content: base64Content,
+        sha,
+      }),
+    },
+  );
+
+  if (!updateRes.ok) {
+    const text = await updateRes.text();
+    throw new Error(`Failed to save config: ${updateRes.status} ${text}`);
+  }
 }
 
 function parsePassengerData(data) {
