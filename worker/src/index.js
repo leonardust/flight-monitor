@@ -43,7 +43,8 @@ export default {
 
     if (COMMANDS.includes(text)) {
       try {
-        await sendPassengerQuestion(env, chatId, "adults", {});
+        const config = await loadConfigFromRepo(env);
+        await sendRouteQuestion(env, chatId, config);
       } catch (err) {
         console.error(`Command handler error: ${err.message}`);
       }
@@ -66,59 +67,129 @@ export default {
 };
 
 async function handleCallbackQuery(env, chatId, data, callbackQueryId) {
-  if (!data.startsWith("p:")) {
-    await answerCallbackQuery(env, callbackQueryId);
-    return;
-  }
-
-  const params = parsePassengerData(data);
-
-  if (!("t" in params)) {
+  // Route selection: r:WRO_ATH
+  if (data.startsWith("r:")) {
+    const routeKey = data.slice(2);
+    const config = await loadConfigFromRepo(env);
+    const route = config.routes.find((r) => r.key === routeKey);
+    if (!route) {
+      await answerCallbackQuery(env, callbackQueryId);
+      await sendTelegram(env, chatId, "❌ Trasa nie znaleziona.");
+      return;
+    }
     await Promise.all([
       answerCallbackQuery(env, callbackQueryId),
-      sendPassengerQuestion(env, chatId, "teens", params),
+      sendDateQuestion(env, chatId, route, {}),
     ]);
     return;
   }
 
-  if (!("c" in params)) {
+  // Outbound date selection: d:2027-01-20
+  if (data.startsWith("d:")) {
+    const dateOut = data.slice(2);
+    const config = await loadConfigFromRepo(env);
+    let route = null;
+    for (const r of config.routes) {
+      if (r.dates.some((d) => d.date === dateOut)) {
+        route = r;
+        break;
+      }
+    }
+    if (!route) {
+      await answerCallbackQuery(env, callbackQueryId);
+      await sendTelegram(env, chatId, "❌ Data nie znaleziona.");
+      return;
+    }
+    const dateEntry = route.dates.find((d) => d.date === dateOut);
+    const params = { routeKey: route.key, dateOut };
+    if (dateEntry?.roundTrip && dateEntry.roundTrip.length > 0) {
+      await Promise.all([
+        answerCallbackQuery(env, callbackQueryId),
+        sendReturnDateQuestion(env, chatId, dateEntry, params),
+      ]);
+    } else {
+      await Promise.all([
+        answerCallbackQuery(env, callbackQueryId),
+        sendPassengerQuestion(env, chatId, "adults", params),
+      ]);
+    }
+    return;
+  }
+
+  // Return date selection: dr:2027-01-27,rk:WRO_ATH,do:2027-01-20
+  if (data.startsWith("dr:")) {
+    const parts = data.slice(3).split(",");
+    const dateInStr = parts[0];
+    const routeKey = parts.find((p) => p.startsWith("rk:"))?.slice(3) ?? "";
+    const dateOutStr = parts.find((p) => p.startsWith("do:"))?.slice(3) ?? "";
+    const params = { routeKey, dateOut: dateOutStr, dateIn: dateInStr };
     await Promise.all([
       answerCallbackQuery(env, callbackQueryId),
-      sendPassengerQuestion(env, chatId, "children", params),
+      sendPassengerQuestion(env, chatId, "adults", params),
     ]);
     return;
   }
 
-  if (!("i" in params)) {
+  // Passenger selection: p:a=2,t=0,c=1,i=0
+  if (data.startsWith("p:")) {
+    const params = parsePassengerData(data);
+
+    if (!("t" in params)) {
+      await Promise.all([
+        answerCallbackQuery(env, callbackQueryId),
+        sendPassengerQuestion(env, chatId, "teens", params),
+      ]);
+      return;
+    }
+
+    if (!("c" in params)) {
+      await Promise.all([
+        answerCallbackQuery(env, callbackQueryId),
+        sendPassengerQuestion(env, chatId, "children", params),
+      ]);
+      return;
+    }
+
+    if (!("i" in params)) {
+      await Promise.all([
+        answerCallbackQuery(env, callbackQueryId),
+        sendPassengerQuestion(env, chatId, "infants", params),
+      ]);
+      return;
+    }
+
+    const passengers = {
+      adults: params.a,
+      teens: params.t,
+      children: params.c,
+      infants: params.i,
+    };
+    const routeKey = params.routeKey ?? "";
+    const dateOut = params.dateOut ?? "";
+    const dateIn = params.dateIn ?? "";
+
     await Promise.all([
       answerCallbackQuery(env, callbackQueryId),
-      sendPassengerQuestion(env, chatId, "infants", params),
+      triggerReport(env, passengers, routeKey, dateOut, dateIn),
+      sendTelegram(
+        env,
+        chatId,
+        `🔍 Sprawdzam dla: ${formatPassengerSummary(passengers)}. Wyniki za chwilę…`,
+      ),
     ]);
     return;
   }
 
-  const passengers = {
-    adults: params.a,
-    teens: params.t,
-    children: params.c,
-    infants: params.i,
-  };
-  await Promise.all([
-    answerCallbackQuery(env, callbackQueryId),
-    triggerReport(env, passengers),
-    sendTelegram(
-      env,
-      chatId,
-      `🔍 Sprawdzam dla: ${formatPassengerSummary(passengers)}. Wyniki za chwilę…`,
-    ),
-  ]);
+  await answerCallbackQuery(env, callbackQueryId);
 }
 
 function parsePassengerData(data) {
   const result = {};
   for (const pair of data.slice(2).split(",")) {
     const [key, val] = pair.split("=");
-    if (key && val !== undefined) result[key] = parseInt(val, 10);
+    if (key && val !== undefined) {
+      result[key] = isNaN(val) ? val : parseInt(val, 10);
+    }
   }
   return result;
 }
@@ -140,6 +211,67 @@ function formatPassengerSummary({ adults, teens, children, infants }) {
   if (children) parts.push(`${children} dzieci`);
   if (infants) parts.push(`${infants} niemowl.`);
   return parts.join(", ") || "0 pasażerów";
+}
+
+async function loadConfigFromRepo(env) {
+  const res = await fetch(
+    `https://api.github.com/repos/${env.GH_REPO}/contents/config.json`,
+    {
+      headers: {
+        Authorization: `token ${env.GH_PAT}`,
+        Accept: "application/vnd.github.v3.raw",
+        "User-Agent": "flight-monitor-bot",
+      },
+    },
+  );
+  if (!res.ok) throw new Error(`Failed to load config: ${res.status}`);
+  return res.json();
+}
+
+async function sendRouteQuestion(env, chatId, config) {
+  const routes = config.routes ?? [];
+  if (routes.length === 0) {
+    await sendTelegram(env, chatId, "❌ Brak tras w konfiguracji.");
+    return;
+  }
+  const buttons = routes.map((r) => ({
+    text: r.label,
+    callback_data: `r:${r.key}`,
+  }));
+  await sendTelegramWithKeyboard(env, chatId, "✈️ Która trasa?", [buttons]);
+}
+
+async function sendDateQuestion(env, chatId, route, params) {
+  const dateButtons = (route.dates ?? []).map((d) => ({
+    text: d.label,
+    callback_data: `d:${d.date}`,
+  }));
+  if (dateButtons.length === 0) {
+    await sendTelegram(env, chatId, "❌ Brak dat dla tej trasy.");
+    return;
+  }
+  await sendTelegramWithKeyboard(env, chatId, "📅 Która data wylotu?", [
+    dateButtons,
+  ]);
+}
+
+async function sendReturnDateQuestion(env, chatId, dateEntry, params) {
+  const returnDates = dateEntry.roundTrip ?? [];
+  if (returnDates.length === 0) {
+    // No return dates, skip to passengers
+    await sendPassengerQuestion(env, chatId, "adults", params);
+    return;
+  }
+  const buttons = returnDates.map((rt) => {
+    const callbackData = `dr:${rt.dateIn},rk:${params.routeKey},do:${params.dateOut}`;
+    return {
+      text: rt.label,
+      callback_data: callbackData,
+    };
+  });
+  await sendTelegramWithKeyboard(env, chatId, "📅 Która data powrotu?", [
+    buttons,
+  ]);
 }
 
 async function sendPassengerQuestion(env, chatId, step, params) {
@@ -169,12 +301,21 @@ async function sendPassengerQuestion(env, chatId, step, params) {
   await sendTelegramWithKeyboard(env, chatId, text, [buttons]);
 }
 
-async function triggerReport(env, passengers) {
+async function triggerReport(
+  env,
+  passengers,
+  routeKey = "",
+  dateOut = "",
+  dateIn = "",
+) {
   const inputs = {
     adults: String(passengers.adults),
     teens: String(passengers.teens),
     children: String(passengers.children),
     infants: String(passengers.infants),
+    route: routeKey,
+    dateOut: dateOut,
+    dateIn: dateIn,
   };
   const res = await fetch(
     `https://api.github.com/repos/${env.GH_REPO}/actions/workflows/report.yml/dispatches`,

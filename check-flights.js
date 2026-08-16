@@ -18,7 +18,33 @@ function loadConfig() {
 
 const config = loadConfig();
 const CURRENCY = config.currency;
-const ROUTES = config.routes;
+let ROUTES = config.routes;
+
+// Filter routes by ROUTE env variable
+const FILTER_ROUTE = process.env.ROUTE ?? "";
+const FILTER_DATE_OUT = process.env.DATE_OUT ?? "";
+const FILTER_DATE_IN = process.env.DATE_IN ?? "";
+
+if (FILTER_ROUTE) {
+  ROUTES = ROUTES.filter((r) => r.key === FILTER_ROUTE).map((route) => {
+    if (!FILTER_DATE_OUT) return route;
+    return {
+      ...route,
+      dates: route.dates
+        .filter((d) => d.date === FILTER_DATE_OUT)
+        .map((dateEntry) => {
+          if (!FILTER_DATE_IN || !dateEntry.roundTrip) return dateEntry;
+          return {
+            ...dateEntry,
+            roundTrip: dateEntry.roundTrip.filter(
+              (rt) => rt.dateIn === FILTER_DATE_IN,
+            ),
+          };
+        }),
+    };
+  });
+}
+
 const _configPassengers = config.passengers ?? {
   adults: 1,
   teens: 0,

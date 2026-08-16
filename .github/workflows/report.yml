@@ -19,6 +19,18 @@ on:
         description: "Niemowlęta (0-1)"
         required: false
         default: ""
+      route:
+        description: "Klucz trasy (np. WRO_ATH)"
+        required: false
+        default: ""
+      dateOut:
+        description: "Data wylotu (np. 2027-01-20)"
+        required: false
+        default: ""
+      dateIn:
+        description: "Data powrotu (np. 2027-01-27)"
+        required: false
+        default: ""
 
 jobs:
   report:
@@ -43,4 +55,7 @@ jobs:
           TEENS: ${{ inputs.teens }}
           CHILDREN: ${{ inputs.children }}
           INFANTS: ${{ inputs.infants }}
+          ROUTE: ${{ inputs.route }}
+          DATE_OUT: ${{ inputs.dateOut }}
+          DATE_IN: ${{ inputs.dateIn }}
         run: node check-flights.js --report
