@@ -6,7 +6,38 @@ https://github.com/leonardust/flight-monitor
 
 ## Jak to działa
 
-### Automatyczne monitorowanie (co 2 godziny)
+### Architektura
+
+```
+┌─────────────────────────────────────────────┐
+│                  Ryanair API                 │
+└────────────┬────────────────────────────────┘
+             │
+    ┌────────┴──────────────┬──────────────┐
+    │                       │              │
+    ▼                       ▼              ▼
+GitHub Actions (co 2h)  Telegram Bot     User (CI/CD)
+    │                   (Webhook)
+    │                    ▲  │
+    └────────────┬────────┘  │
+                 │           │
+         ▼       ▼           ▼
+    check-flights.js
+         │
+    ┌────┼────┐
+    │    │    │
+    ▼    ▼    ▼
+  Gist Config.json Telegram
+  (history) (routes)  (notify)
+```
+
+### Komponenty
+
+- **GitHub Actions** — monitoruje trasy co 2 godziny (`monitor.yml`) + raporty na żądanie (`report.yml`)
+- **check-flights.js** — fetch cen, detekcja zmian, powiadomienia (Node.js)
+- **Cloudflare Worker** — webhook Telegrama, interaktywne menu, dodawanie tras
+- **GitHub Gist** — przechowuje historię cen i bieżący stan
+- **config.json** — konfiguracja tras (może być aktualizowany przez Worker)
 
 ```
 GitHub Actions (monitor.yml)
@@ -27,19 +58,20 @@ Powiadomienia:
 
 Każda data śledzona jest **niezależnie** — zmiana ceny na jednej dacie nie wpływa na inne.
 
-### Raport na żądanie (`/sprawdz`, `/check`)
+### Raport na żądanie (`/check`)
 
 ```
-Telegram /sprawdz
+Telegram /check
   └─ Cloudflare Worker
        ├─ weryfikuje chat_id
-       ├─ odpowiada „Sprawdzam ceny…"
-       └─ triggeruje GitHub Actions (report.yml)
+       ├─ pokazuje inline buttons do wyboru trasy
+       ├─ użytkownik wybiera trasę → datę wylotu → datę powrotu (jeśli ma) → liczbę pasażerów
+       └─ triggeruje GitHub Actions (report.yml) z wybranymi parametrami
             └─ node check-flights.js --report
-                 └─ pobiera aktualne ceny i wysyła zbiorczy raport na Telegram
+                 └─ pobiera aktualne ceny dla wybranej trasy/dat i wysyła raport na Telegram
 ```
 
-Raport nie zmienia stanu — pokazuje tylko aktualne ceny wszystkich tras i dat (w tym powroty).
+Raport nie zmienia stanu — pokazuje tylko aktualne ceny dla wybranej trasy i daty.
 
 ### Trendy cen (`/trend`)
 
@@ -161,12 +193,52 @@ Wymagane w repo → Settings → Secrets and variables → Actions:
 
 Worker odbiera komendy z Telegrama przez webhook i obsługuje:
 
-| Komenda         | Opis                                              |
-| --------------- | ------------------------------------------------- |
-| `/sprawdz`      | Triggeruje raport aktualnych cen (report.yml)     |
-| `/check`        | Alias `/sprawdz`                                  |
-| `/trend`        | Wykres ASCII historii cen dla każdej trasy i daty |
-| `/lowest_price` | Najniższa odnotowana cena dla każdej trasy i daty |
+| Komenda        | Opis                                                                    |
+| -------------- | ----------------------------------------------------------------------- |
+| `/check`       | Wybierz trasę i daty → triggeruje raport aktualnych cen                 |
+| `/addroute`    | Dodaj nową trasę do monitorowania bez edytowania `config.json`          |
+| `/help`        | Pokaż dostępne komendy                                                  |
+| `/trend`       | Wykres ASCII historii cen dla każdej trasy i daty                      |
+| `/lowest_price`| Najniższa odnotowana cena dla każdej trasy i daty                      |
+
+#### Komenda `/check` (interaktywnie)
+
+Krok po kroku:
+1. Wyślij `/check`
+2. Worker wyświetla **inline buttons** ze wszystkimi trasami z `config.json`
+3. Wybierz trasę
+4. Wybierz datę wylotu
+5. Jeśli jest wiele powrotów — wybierz datę powrotu
+6. Wybierz liczbę każdego typu pasażera (adults → teens → children → infants)
+7. Worker triggeruje GitHub Actions z wybranymi parametrami
+8. Otrzymujesz raport cen dla wybranej kombinacji
+
+#### Komenda `/addroute` (dynamiczne dodawanie tras)
+
+Bez potrzeby edytowania `config.json` ani pusowania zmian:
+
+```
+/addroute
+  ↓
+Bot odpowiada instrukcją
+
+Ty odpowiadasz:
+  WRO ATH 2027-01-20 2027-01-27
+
+Bot:
+  ✅ Trasę dodano!
+  WRO→ATH (20 sty, 27 sty)
+```
+
+Nowa trasa jest natychmiast dostępna w `/check` i monitorowana w pętli GitHub Actions.
+
+**Format:**
+- `KOD_Z KOD_DO DATA_WYLOTU DATA_POWROTU` (lot z powrotem)
+- `KOD_Z KOD_DO DATA_WYLOTU` (tylko lot w jedną stronę)
+
+**Przykłady:**
+- `WRO ATH 2027-01-20 2027-01-27` — Warszawa → Ateny, 20 sty, powrót 27 sty
+- `WRO BGY 2027-02-10` — Warszawa → Bergamo, 10 lut (bez powrotu)
 
 #### Pierwsze wdrożenie
 
@@ -195,6 +267,7 @@ curl "https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://flight-monitor-
 | `TELEGRAM_CHAT_ID` | ID czatu do powiadomień                       |
 | `GH_PAT`           | Personal Access Token (scope: `gist`, `repo`) |
 | `GIST_ID`          | ID Gista (do odczytu history.json)            |
+| `TELEGRAM_SECRET`  | Opcjonalnie — token do weryfikacji webhhooka   |
 
 #### Zmienne w `worker/wrangler.toml`
 
@@ -203,9 +276,56 @@ curl "https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://flight-monitor-
 | `GH_REPO` | Repozytorium (`owner/repo`)                    |
 | `GH_REF`  | Branch do workflow_dispatch (domyślnie `main`) |
 
+#### Parametry workflow dla `/check`
+
+Gdy użytkownik wyśle `/check` i wybierze trasę/daty/pasażerów, Worker triggeruje `report.yml` z parametrami:
+
+```yaml
+inputs:
+  route: WRO_ATH           # Key trasy z config.json
+  dateOut: 2027-01-20      # Data wylotu (YYYY-MM-DD)
+  dateIn: 2027-01-27       # Data powrotu (YYYY-MM-DD)
+  adults: 2               # Liczba dorosłych
+  teens: 0                # Liczba nastolatków
+  children: 1             # Liczba dzieci
+  infants: 0              # Liczba niemowląt
+```
+
+`check-flights.js` filtruje trasy i daty na podstawie tych zmiennych:
+
+```javascript
+// check-flights.js
+// Jeśli FILTER_ROUTE ustawiony → przechodź tylko tę trasę
+// Jeśli FILTER_DATE_OUT ustawiony → przechodź tylko tę datę wylotu
+// Jeśli FILTER_DATE_IN ustawiony → przechodź tylko tę datę powrotu
+const FILTER_ROUTE = process.env.FILTER_ROUTE;      // np. "WRO_ATH"
+const FILTER_DATE_OUT = process.env.FILTER_DATE_OUT; // np. "2027-01-20"
+const FILTER_DATE_IN = process.env.FILTER_DATE_IN;   // np. "2027-01-27"
+```
+
+Dzięki temu raport zawiera **tylko** wybrane loty, bez zbędnych tras.
+
 #### Aktualizacja workera
 
 ```bash
 cd worker
 npx wrangler deploy
+```
+
+## Testowanie
+
+Uruchom testy jednostkowe:
+
+```bash
+node check-flights.test.js
+```
+
+Sprawdź komendy Telegrama:
+
+```bash
+/help              # Pokaż dostępne komendy
+/check             # Zacznij proces wyboru
+/addroute          # Dodaj nową trasę
+/trend             # Wykresy cen
+/lowest_price      # Najniższe ceny
 ```
