@@ -344,8 +344,7 @@ async function sendLowestPrices(env, chatId) {
       year: "numeric",
     });
     const spaceIdx = label.indexOf(" ");
-    const routePart =
-      spaceIdx >= 0 ? label.slice(0, spaceIdx) : label;
+    const routePart = spaceIdx >= 0 ? label.slice(0, spaceIdx) : label;
     const datePart = spaceIdx >= 0 ? label.slice(spaceIdx + 1) : "";
     const routeFormatted = routePart.replace("→", " → ");
     lines.push(`✈️ ${routeFormatted}`);

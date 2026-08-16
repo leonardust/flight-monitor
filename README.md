@@ -106,8 +106,16 @@ Worker pobiera `history.json` z Gista i wyświetla dla każdej trasy/daty najni�
           "date": "2026-11-07",
           "label": "7 lis",
           "roundTrip": [
-            { "dateOut": "2026-11-07", "dateIn": "2026-11-12", "label": "12 lis" },
-            { "dateOut": "2026-11-07", "dateIn": "2026-11-13", "label": "13 lis" }
+            {
+              "dateOut": "2026-11-07",
+              "dateIn": "2026-11-12",
+              "label": "12 lis"
+            },
+            {
+              "dateOut": "2026-11-07",
+              "dateIn": "2026-11-13",
+              "label": "13 lis"
+            }
           ]
         }
       ]
@@ -126,15 +134,15 @@ Worker pobiera `history.json` z Gista i wyświetla dla każdej trasy/daty najni�
 }
 ```
 
-| Pole               | Opis                                                        |
-| ------------------ | ----------------------------------------------------------- |
-| `currency`         | Waluta wyświetlana w powiadomieniach                        |
-| `passengers`       | Liczba pasażerów każdego typu (cena mnożona przez sumę)     |
-| `routes[].key`     | Unikalny identyfikator trasy (używany w Gist)               |
-| `routes[].from/to` | Kody lotnisk IATA                                           |
-| `routes[].label`   | Etykieta trasy w powiadomieniach                            |
-| `priceThreshold`   | Opcjonalny próg — `TANIEJE` tylko gdy cena spada poniżej   |
-| `dates[].roundTrip`| Opcjonalna lista powrotów dla danej daty wylotu             |
+| Pole                | Opis                                                     |
+| ------------------- | -------------------------------------------------------- |
+| `currency`          | Waluta wyświetlana w powiadomieniach                     |
+| `passengers`        | Liczba pasażerów każdego typu (cena mnożona przez sumę)  |
+| `routes[].key`      | Unikalny identyfikator trasy (używany w Gist)            |
+| `routes[].from/to`  | Kody lotnisk IATA                                        |
+| `routes[].label`    | Etykieta trasy w powiadomieniach                         |
+| `priceThreshold`    | Opcjonalny próg — `TANIEJE` tylko gdy cena spada poniżej |
+| `dates[].roundTrip` | Opcjonalna lista powrotów dla danej daty wylotu          |
 
 Opcjonalnie można utworzyć `config.local.json` (ignorowany przez git) z lokalnymi nadpisaniami.
 
@@ -153,12 +161,12 @@ Wymagane w repo → Settings → Secrets and variables → Actions:
 
 Worker odbiera komendy z Telegrama przez webhook i obsługuje:
 
-| Komenda         | Opis                                                  |
-| --------------- | ----------------------------------------------------- |
-| `/sprawdz`      | Triggeruje raport aktualnych cen (report.yml)         |
-| `/check`        | Alias `/sprawdz`                                      |
-| `/trend`        | Wykres ASCII historii cen dla każdej trasy i daty     |
-| `/lowest_price` | Najniższa odnotowana cena dla każdej trasy i daty     |
+| Komenda         | Opis                                              |
+| --------------- | ------------------------------------------------- |
+| `/sprawdz`      | Triggeruje raport aktualnych cen (report.yml)     |
+| `/check`        | Alias `/sprawdz`                                  |
+| `/trend`        | Wykres ASCII historii cen dla każdej trasy i daty |
+| `/lowest_price` | Najniższa odnotowana cena dla każdej trasy i daty |
 
 #### Pierwsze wdrożenie
 
@@ -181,12 +189,12 @@ curl "https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://flight-monitor-
 
 #### Sekrety Cloudflare Worker
 
-| Sekret             | Opis                                  |
-| ------------------ | ------------------------------------- |
-| `TELEGRAM_TOKEN`   | Token bota Telegram                   |
-| `TELEGRAM_CHAT_ID` | ID czatu do powiadomień               |
+| Sekret             | Opis                                          |
+| ------------------ | --------------------------------------------- |
+| `TELEGRAM_TOKEN`   | Token bota Telegram                           |
+| `TELEGRAM_CHAT_ID` | ID czatu do powiadomień                       |
 | `GH_PAT`           | Personal Access Token (scope: `gist`, `repo`) |
-| `GIST_ID`          | ID Gista (do odczytu history.json)    |
+| `GIST_ID`          | ID Gista (do odczytu history.json)            |
 
 #### Zmienne w `worker/wrangler.toml`
 
