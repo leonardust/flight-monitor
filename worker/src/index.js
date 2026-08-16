@@ -1,5 +1,5 @@
-const COMMANDS = ["/sprawdz", "/check"];
-const ADD_ROUTE_COMMAND = "/dodaj_trasę";
+const COMMANDS = ["/check"];
+const ADD_ROUTE_COMMAND = "/addroute";
 const HELP_COMMAND = "/help";
 
 export default {
@@ -67,7 +67,7 @@ export default {
         await sendTelegramHtml(
           env,
           chatId,
-          "✈️ Dodaj nową trasę w formacie:\n<code>KOD_Z KOD_DO DATA_WYLOTU DATA_POWROTU</code>\n\nPrzykład:\n<code>WRO ATH 2027-01-20 2027-01-27</code>\n\nJeśli brak powrotu, podaj tylko:\n<code>WRO ATH 2027-01-20</code>",
+          "✈️ <b>Dodaj nową trasę</b> w formacie:\n<code>KOD_Z KOD_DO DATA_WYLOTU DATA_POWROTU</code>\n\nPrzykład:\n<code>WRO ATH 2027-01-20 2027-01-27</code>\n\nJeśli brak powrotu, podaj tylko:\n<code>WRO ATH 2027-01-20</code>",
         );
       } catch (err) {
         console.error(`Add route command error: ${err.message}`);
@@ -86,14 +86,18 @@ export default {
         }
       } catch (err) {
         console.error(`Add route parsing error: ${err.message}`);
-        await sendTelegram(env, chatId, `❌ Błąd przetwarzania: ${err.message}`);
+        await sendTelegram(
+          env,
+          chatId,
+          `❌ Błąd przetwarzania: ${err.message}`,
+        );
       }
     } else if (text === HELP_COMMAND) {
       try {
         await sendTelegramHtml(
           env,
           chatId,
-          `📋 Dostępne komendy:\n\n<b>/sprawdz</b> - Sprawdź cenę dla wybranej trasy\n<b>/dodaj_trasę</b> - Dodaj nową trasę do monitorowania\n<b>/trend</b> - Wykresy trendów cen\n<b>/lowest_price</b> - Najniższe ceny w historii`,
+          `📋 <b>Available commands:</b>\n\n<b>/check</b> - Check price for selected route\n<b>/addroute</b> - Add new route to monitor\n<b>/trend</b> - Price trend charts\n<b>/lowest_price</b> - Historical lowest prices\n<b>/help</b> - Show this message`,
         );
       } catch (err) {
         console.error(`Help command error: ${err.message}`);
