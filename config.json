@@ -37,6 +37,25 @@
           "label": "27 sty"
         }
       ]
+    },
+    {
+      "key": "WRO_CIA",
+      "from": "WRO",
+      "to": "CIA",
+      "label": "WRO→CIA",
+      "dates": [
+        {
+          "date": "2027-01-23",
+          "label": "23 sty",
+          "roundTrip": [
+            {
+              "dateOut": "2027-01-23",
+              "dateIn": "2027-01-30",
+              "label": "30 sty"
+            }
+          ]
+        }
+      ]
     }
   ]
 }
