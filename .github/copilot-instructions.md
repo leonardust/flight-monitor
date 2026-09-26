@@ -2,12 +2,19 @@
 
 ## Stack
 
-- Node.js (CommonJS, `"use strict"`)
-- Cloudflare Workers (`worker/src/index.js`)
-- No framework — plain `https` module, no external HTTP clients
+### check-flights.js (Node.js)
+- Runtime: Node.js (CommonJS, `"use strict"`)
+- HTTP client: plain `https` module, no external HTTP clients
 - Tests: Node.js built-in `node:test` + `assert`
 
+### worker/src/index.js (Cloudflare Worker)
+- Runtime: ESM (ECMAScript modules)
+- HTTP client: platform `fetch` API
+- Environment: Cloudflare Workers runtime (not Node.js)
+
 ## Core Principles
+
+Zasady dotyczą obydwu runtimeów (`check-flights.js` i `worker/src/index.js`), ale implementacja różni się:
 
 ### SOLID
 
@@ -46,13 +53,17 @@
 ## Architektura projektu
 
 ```
-check-flights.js     # logika główna: fetch → parse → notify → persist
+check-flights.js     # Node.js: logika główna (fetch → parse → notify → persist)
 config.json          # konfiguracja tras, waluty, pasażerów (publiczna)
 config.local.json    # lokalne nadpisanie config.json (gitignored)
-worker/              # Cloudflare Worker — osobny runtime, nie importuje check-flights.js
+worker/src/index.js  # Cloudflare Worker: osobny runtime (ESM, fetch API)
 ```
 
-Zmiany w `check-flights.js` nie wpływają automatycznie na `worker/` i odwrotnie.
+**Ważne:** `check-flights.js` (Node.js CommonJS) i `worker/` (ESM) to oddzielne runtime-y:
+- `check-flights.js` używa `https` module (Node.js)
+- `worker/src/index.js` używa `fetch` API (Cloudflare platform)
+- Zmienia w `check-flights.js` nie wpływają automatycznie na `worker/` i odwrotnie
+- Każdy ma swoją konfigurację i zależności
 
 ## Testowanie
 
