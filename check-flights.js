@@ -52,17 +52,25 @@ const _configPassengers = config.passengers ?? {
   infants: 0,
 };
 const PASSENGERS = (() => {
-  const e = {
+  const envPassengers = {
     adults: parseInt(process.env.ADULTS ?? "", 10),
     teens: parseInt(process.env.TEENS ?? "", 10),
     children: parseInt(process.env.CHILDREN ?? "", 10),
     infants: parseInt(process.env.INFANTS ?? "", 10),
   };
   return {
-    adults: isFinite(e.adults) ? e.adults : _configPassengers.adults,
-    teens: isFinite(e.teens) ? e.teens : _configPassengers.teens,
-    children: isFinite(e.children) ? e.children : _configPassengers.children,
-    infants: isFinite(e.infants) ? e.infants : _configPassengers.infants,
+    adults: isFinite(envPassengers.adults)
+      ? envPassengers.adults
+      : _configPassengers.adults,
+    teens: isFinite(envPassengers.teens)
+      ? envPassengers.teens
+      : _configPassengers.teens,
+    children: isFinite(envPassengers.children)
+      ? envPassengers.children
+      : _configPassengers.children,
+    infants: isFinite(envPassengers.infants)
+      ? envPassengers.infants
+      : _configPassengers.infants,
   };
 })();
 
