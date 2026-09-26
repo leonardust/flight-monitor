@@ -527,6 +527,117 @@ function buildReturnFlightMap() {
   return map;
 }
 
+// Process a single price result for a route and date
+async function processPriceChange(route, result, state, history, returnFlightMap) {
+  let priceChanged = false;
+  const prevPrice = state[route.key][result.date]?.price ?? null;
+  const newPrice = result.price;
+  const msgLabel = buildLabel(route.label, result.label);
+
+  console.log(
+    `[${route.key}][${result.date}] prev=${prevPrice} curr=${newPrice}`,
+  );
+
+  const msg = buildMessage(
+    msgLabel,
+    prevPrice,
+    newPrice,
+    PRICE_THRESHOLD,
+    TOTAL_PAX,
+  );
+
+  if (prevPrice !== newPrice) {
+    state[route.key][result.date] = { price: newPrice };
+    priceChanged = true;
+  }
+
+  if (newPrice !== null) {
+    const histKey = `${route.key}_${result.date}`;
+    if (!history[histKey]) {
+      history[histKey] = {
+        label: buildLabel(route.label, result.label),
+        entries: [],
+      };
+    }
+    const lastEntry = history[histKey].entries.at(-1);
+    if (!lastEntry || lastEntry.price !== newPrice) {
+      history[histKey].entries.push({
+        price: newPrice,
+        ts: new Date().toISOString(),
+      });
+    }
+  }
+
+  if (msg) {
+    console.log(`[${route.key}][${result.date}] → ${msg}`);
+    try {
+      // Check if this is a return flight in the map
+      const returnKey = `${route.key}_${result.date}`;
+      let outboundInfo = null;
+
+      if (returnFlightMap[returnKey]) {
+        const rtInfo = returnFlightMap[returnKey];
+        // Fetch the outbound price
+        try {
+          const outboundRoute = ROUTES.find(
+            (r) => r.key === rtInfo.outboundRouteKey,
+          );
+          if (outboundRoute) {
+            const outboundPrice = await fetchPrice({
+              ...outboundRoute,
+              date: rtInfo.outboundDate,
+            });
+            outboundInfo = {
+              outboundPrice,
+              outboundDate: rtInfo.outboundDate,
+              outboundLabel: rtInfo.outboundLabel,
+              outboundFrom: outboundRoute.from,
+              outboundTo: outboundRoute.to,
+            };
+          }
+        } catch (err) {
+          console.warn(
+            `Failed to fetch outbound price for return flight: ${err.message}`,
+          );
+        }
+      }
+
+      const htmlMsg = await buildPriceNotification(
+        msgLabel,
+        prevPrice,
+        newPrice,
+        result,
+        route,
+        outboundInfo,
+      );
+      await notify(htmlMsg, [], "HTML");
+    } catch (err) {
+      console.error(`[${route.key}] Telegram error: ${err.message}`);
+    }
+    if (newPrice !== null) {
+      const histKey = `${route.key}_${result.date}`;
+      const routeHistory = history[histKey];
+      if (routeHistory && routeHistory.entries.length >= 2) {
+        const chart = buildAsciiChart(
+          routeHistory.label,
+          routeHistory.entries,
+        );
+        if (chart) {
+          try {
+            await notify(`<pre>${escapeHtml(chart)}</pre>`, [], "HTML");
+          } catch (err) {
+            console.error(`[${route.key}] Chart error: ${err.message}`);
+          }
+        }
+      }
+    }
+  } else {
+    console.log(`[${route.key}][${result.date}] No change.`);
+  }
+
+  return priceChanged;
+}
+
 async function main() {
   const state = await loadState();
   const history = await loadHistory();
@@ -565,105 +676,10 @@ async function main() {
     if (!state[route.key]) state[route.key] = {};
 
     for (const result of dateResults) {
-      const prevPrice = state[route.key][result.date]?.price ?? null;
-      const newPrice = result.price;
-      const msgLabel = buildLabel(route.label, result.label);
-
-      console.log(
-        `[${route.key}][${result.date}] prev=${prevPrice} curr=${newPrice}`,
-      );
-
-      const msg = buildMessage(
-        msgLabel,
-        prevPrice,
-        newPrice,
-        PRICE_THRESHOLD,
-        TOTAL_PAX,
-      );
-
-      if (prevPrice !== newPrice) {
-        state[route.key][result.date] = { price: newPrice };
+      if (
+        await processPriceChange(route, result, state, history, returnFlightMap)
+      ) {
         changed = true;
-      }
-
-      if (newPrice !== null) {
-        const histKey = `${route.key}_${result.date}`;
-        if (!history[histKey]) {
-          history[histKey] = {
-            label: buildLabel(route.label, result.label),
-            entries: [],
-          };
-        }
-        const lastEntry = history[histKey].entries.at(-1);
-        if (!lastEntry || lastEntry.price !== newPrice) {
-          history[histKey].entries.push({
-            price: newPrice,
-            ts: new Date().toISOString(),
-          });
-        }
-      }
-
-      if (msg) {
-        console.log(`[${route.key}][${result.date}] \u2192 ${msg}`);
-        try {
-          // Check if this is a return flight in the map
-          const returnKey = `${route.key}_${result.date}`;
-          let outboundInfo = null;
-          
-          if (returnFlightMap[returnKey]) {
-            const rtInfo = returnFlightMap[returnKey];
-            // Fetch the outbound price
-            try {
-              const outboundRoute = ROUTES.find(r => r.key === rtInfo.outboundRouteKey);
-              if (outboundRoute) {
-                const outboundPrice = await fetchPrice({
-                  ...outboundRoute,
-                  date: rtInfo.outboundDate,
-                });
-                outboundInfo = {
-                  outboundPrice,
-                  outboundDate: rtInfo.outboundDate,
-                  outboundLabel: rtInfo.outboundLabel,
-                  outboundFrom: outboundRoute.from,
-                  outboundTo: outboundRoute.to,
-                };
-              }
-            } catch (err) {
-              console.warn(`Failed to fetch outbound price for return flight: ${err.message}`);
-            }
-          }
-          
-          const htmlMsg = await buildPriceNotification(
-            msgLabel,
-            prevPrice,
-            newPrice,
-            result,
-            route,
-            outboundInfo,
-          );
-          await notify(htmlMsg, [], "HTML");
-        } catch (err) {
-          console.error(`[${route.key}] Telegram error: ${err.message}`);
-        }
-        if (newPrice !== null) {
-          const histKey = `${route.key}_${result.date}`;
-          const routeHistory = history[histKey];
-          if (routeHistory && routeHistory.entries.length >= 2) {
-            const chart = buildAsciiChart(
-              routeHistory.label,
-              routeHistory.entries,
-            );
-            if (chart) {
-              try {
-                await notify(`<pre>${escapeHtml(chart)}</pre>`, [], "HTML");
-              } catch (err) {
-                console.error(`[${route.key}] Chart error: ${err.message}`);
-              }
-            }
-          }
-        }
-      } else {
-        console.log(`[${route.key}][${result.date}] No change.`);
       }
     }
   }
