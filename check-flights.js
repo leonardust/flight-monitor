@@ -80,6 +80,11 @@ const PRICE_THRESHOLD = _rawThreshold
 const HTTP_TIMEOUT = 15_000;
 const RETRY_ATTEMPTS = 3;
 const RETRY_DELAY_MS = 1_000;
+const TOTAL_PAX =
+  PASSENGERS.adults +
+  PASSENGERS.teens +
+  PASSENGERS.children +
+  PASSENGERS.infants;
 
 const REQUIRED_ENV = [
   "TELEGRAM_TOKEN",
@@ -374,19 +379,14 @@ async function buildPriceNotification(
   route,
   outboundInfo = null,
 ) {
-  const totalPax =
-    PASSENGERS.adults +
-    PASSENGERS.teens +
-    PASSENGERS.children +
-    PASSENGERS.infants;
   const lines = [buildEventHeader(label, oldPrice, newPrice)];
 
   if (newPrice !== null) {
     const oneWayUrl = buildRyanairUrl(route.from, route.to, result.date);
-    const newTotal = fmt(newPrice * totalPax);
+    const newTotal = fmt(newPrice * TOTAL_PAX);
     if (oldPrice !== null && oldPrice !== newPrice) {
-      const oldTotal = fmt(oldPrice * totalPax);
-      const diffTotal = fmt(Math.abs(newPrice - oldPrice) * totalPax);
+      const oldTotal = fmt(oldPrice * TOTAL_PAX);
+      const diffTotal = fmt(Math.abs(newPrice - oldPrice) * TOTAL_PAX);
       const sign = newPrice < oldPrice ? "-" : "+";
       lines.push(
         `\u2192 ${oldTotal} \u2192 <a href="${oneWayUrl}">${newTotal} ${CURRENCY}</a> (${sign}${diffTotal} ${CURRENCY})`,
@@ -404,7 +404,7 @@ async function buildPriceNotification(
           date: rt.dateIn,
         });
         if (inboundPrice !== null) {
-          const rtTotal = fmt((newPrice + inboundPrice) * totalPax);
+          const rtTotal = fmt((newPrice + inboundPrice) * TOTAL_PAX);
           lines.push(
             `\u2194 ${result.label}\u2192${rt.label}: <a href="${rtUrl}">${rtTotal} ${CURRENCY}</a>`,
           );
@@ -431,7 +431,7 @@ async function buildPriceNotification(
       try {
         if (outboundInfo.outboundPrice !== null) {
           const rtTotal = fmt(
-            (outboundInfo.outboundPrice + newPrice) * totalPax,
+            (outboundInfo.outboundPrice + newPrice) * TOTAL_PAX,
           );
           lines.push(
             `\u2194 ${outboundInfo.outboundLabel}\u2192${result.label}: <a href="${rtUrl}">${rtTotal} ${CURRENCY}</a>`,
@@ -568,10 +568,7 @@ async function main() {
         prevPrice,
         newPrice,
         PRICE_THRESHOLD,
-        PASSENGERS.adults +
-          PASSENGERS.teens +
-          PASSENGERS.children +
-          PASSENGERS.infants,
+        TOTAL_PAX,
       );
 
       if (prevPrice !== newPrice) {
@@ -673,11 +670,6 @@ async function main() {
 // ── Report mode ─────────────────────────────────────────
 
 async function report() {
-  const totalPax =
-    PASSENGERS.adults +
-    PASSENGERS.teens +
-    PASSENGERS.children +
-    PASSENGERS.infants;
   const parts = [];
   const rtLines = [];
 
@@ -697,7 +689,7 @@ async function report() {
       const oneWayUrl = buildRyanairUrl(route.from, route.to, dateEntry.date);
       if (price !== null) {
         dateLines.push(
-          `${dateEntry.label} \u2192 <a href="${oneWayUrl}">${fmt(price * totalPax)} ${CURRENCY}</a>`,
+          `${dateEntry.label} → <a href="${oneWayUrl}">${fmt(price * TOTAL_PAX)} ${CURRENCY}</a>`,
         );
         for (const rt of dateEntry.roundTrip ?? []) {
           const rtUrl = buildRyanairRoundTripUrl(rt.dateOut, rt.dateIn);
@@ -708,7 +700,7 @@ async function report() {
               date: rt.dateIn,
             });
             if (inboundPrice !== null) {
-              const rtTotal = fmt((price + inboundPrice) * totalPax);
+              const rtTotal = fmt((price + inboundPrice) * TOTAL_PAX);
               rtLines.push(
                 `${dateEntry.label} \u2192 ${rt.label}: <a href="${rtUrl}">${rtTotal} ${CURRENCY}</a>`,
               );
