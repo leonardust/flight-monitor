@@ -2,7 +2,4 @@
 config.local.json
 node_modules/
 worker/node_modules/
-.github/code-reviews
 .github/plans
-.github/copilot-instructions.md
-.github/skills/review-code/SKILL.md
