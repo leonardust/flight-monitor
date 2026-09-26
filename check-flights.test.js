@@ -128,15 +128,22 @@ test("buildRyanairUrl builds correct URL for a given route and date", () => {
 
 test("buildRyanairRoundTripUrl builds correct round-trip URL", () => {
   const pax = { adults: 1, teens: 0, children: 0, infants: 0 };
-  const url = buildRyanairRoundTripUrl("2026-11-07", "2026-11-12", pax);
+  
+  // Test with default airports (WRO/BGY)
+  const urlDefault = buildRyanairRoundTripUrl("2026-11-07", "2026-11-12", undefined, undefined, pax);
   assert.ok(
-    url.startsWith("https://www.ryanair.com/pl/pl/trip/flights/select?"),
+    urlDefault.startsWith("https://www.ryanair.com/pl/pl/trip/flights/select?"),
   );
-  assert.ok(url.includes("originIata=WRO"));
-  assert.ok(url.includes("destinationIata=BGY"));
-  assert.ok(url.includes("dateOut=2026-11-07"));
-  assert.ok(url.includes("dateIn=2026-11-12"));
-  assert.ok(url.includes("isReturn=true"));
+  assert.ok(urlDefault.includes("originIata=WRO"));
+  assert.ok(urlDefault.includes("destinationIata=BGY"));
+  assert.ok(urlDefault.includes("dateOut=2026-11-07"));
+  assert.ok(urlDefault.includes("dateIn=2026-11-12"));
+  assert.ok(urlDefault.includes("isReturn=true"));
+  
+  // Test with custom airports (WRO/ATH)
+  const urlCustom = buildRyanairRoundTripUrl("2026-11-07", "2026-11-12", "WRO", "ATH", pax);
+  assert.ok(urlCustom.includes("originIata=WRO"));
+  assert.ok(urlCustom.includes("destinationIata=ATH"));
 });
 
 // ── Per-date tracking integration tests ─────────────────

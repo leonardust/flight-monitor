@@ -282,7 +282,7 @@ function buildRyanairUrl(from, to, date, passengers = PASSENGERS) {
   return `https://www.ryanair.com/pl/pl/trip/flights/select?${params}`;
 }
 
-function buildRyanairRoundTripUrl(dateOut, dateIn, passengers = PASSENGERS) {
+function buildRyanairRoundTripUrl(dateOut, dateIn, originIata = "WRO", destIata = "BGY", passengers = PASSENGERS) {
   const params = new URLSearchParams({
     adults: String(passengers.adults ?? 1),
     teens: String(passengers.teens ?? 0),
@@ -290,8 +290,8 @@ function buildRyanairRoundTripUrl(dateOut, dateIn, passengers = PASSENGERS) {
     infants: String(passengers.infants ?? 0),
     dateOut,
     dateIn,
-    originIata: "WRO",
-    destinationIata: "BGY",
+    originIata,
+    destinationIata: destIata,
     isConnectedFlight: "false",
     isReturn: "true",
     discount: "0",
@@ -425,6 +425,8 @@ async function buildPriceNotification(
       const rtUrl = buildRyanairRoundTripUrl(
         outboundInfo.outboundDate,
         result.date,
+        outboundInfo.outboundFrom,
+        outboundInfo.outboundTo,
       );
       try {
         if (outboundInfo.outboundPrice !== null) {
@@ -433,6 +435,10 @@ async function buildPriceNotification(
           );
           lines.push(
             `\u2194 ${outboundInfo.outboundLabel}\u2192${result.label}: <a href="${rtUrl}">${rtTotal} ${CURRENCY}</a>`,
+          );
+        } else {
+          lines.push(
+            `\u2194 ${outboundInfo.outboundLabel}\u2192${result.label}: <a href="${rtUrl}">sprawd\u017a</a>`,
           );
         }
       } catch {
@@ -611,6 +617,8 @@ async function main() {
                   outboundPrice,
                   outboundDate: rtInfo.outboundDate,
                   outboundLabel: rtInfo.outboundLabel,
+                  outboundFrom: outboundRoute.from,
+                  outboundTo: outboundRoute.to,
                 };
               }
             } catch (err) {
