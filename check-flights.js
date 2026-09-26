@@ -372,6 +372,7 @@ async function buildPriceNotification(
   newPrice,
   result,
   route,
+  outboundInfo = null,
 ) {
   const totalPax =
     PASSENGERS.adults +
@@ -418,6 +419,28 @@ async function buildPriceNotification(
         );
       }
     }
+
+    // If this is a return flight, show round-trip total with outbound price
+    if (outboundInfo) {
+      const rtUrl = buildRyanairRoundTripUrl(
+        outboundInfo.outboundDate,
+        result.date,
+      );
+      try {
+        if (outboundInfo.outboundPrice !== null) {
+          const rtTotal = fmt(
+            (outboundInfo.outboundPrice + newPrice) * totalPax,
+          );
+          lines.push(
+            `\u2194 ${outboundInfo.outboundLabel}\u2192${result.label}: <a href="${rtUrl}">${rtTotal} ${CURRENCY}</a>`,
+          );
+        }
+      } catch {
+        lines.push(
+          `\u2194 ${outboundInfo.outboundLabel}\u2192${result.label}: <a href="${rtUrl}">sprawd\u017a</a>`,
+        );
+      }
+    }
   }
 
   return lines.join("\n");
@@ -458,10 +481,43 @@ function buildAsciiChart(label, entries, n = 10) {
 
 // ── Main ────────────────────────────────────────────────
 
+// Build a map of return flights (route key + return date) to their outbound info
+function buildReturnFlightMap() {
+  const map = {};
+  for (const route of ROUTES) {
+    for (const dateEntry of route.dates) {
+      for (const rt of dateEntry.roundTrip ?? []) {
+        // Map: "ROUTE_KEY_DATE" → { outbound route key, outbound date, outbound label }
+        // Find the reverse route that matches
+        for (const reverseRoute of ROUTES) {
+          if (reverseRoute.from === route.to && reverseRoute.to === route.from) {
+            // Check if this reverse route has the matching return date
+            for (const reverseDate of reverseRoute.dates) {
+              if (reverseDate.date === rt.dateIn) {
+                const key = `${reverseRoute.key}_${reverseDate.date}`;
+                map[key] = {
+                  outboundRouteKey: route.key,
+                  outboundDate: dateEntry.date,
+                  outboundLabel: buildLabel(route.label, dateEntry.label),
+                  returnLabel: buildLabel(reverseRoute.label, reverseDate.label),
+                };
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  return map;
+}
+
 async function main() {
   const state = await loadState();
   const history = await loadHistory();
   let changed = false;
+  
+  // Build map of return flights to their outbound flights
+  const returnFlightMap = buildReturnFlightMap();
 
   for (const route of ROUTES) {
     const dateResults = [];
@@ -537,12 +593,38 @@ async function main() {
       if (msg) {
         console.log(`[${route.key}][${result.date}] \u2192 ${msg}`);
         try {
+          // Check if this is a return flight in the map
+          const returnKey = `${route.key}_${result.date}`;
+          let outboundInfo = null;
+          
+          if (returnFlightMap[returnKey]) {
+            const rtInfo = returnFlightMap[returnKey];
+            // Fetch the outbound price
+            try {
+              const outboundRoute = ROUTES.find(r => r.key === rtInfo.outboundRouteKey);
+              if (outboundRoute) {
+                const outboundPrice = await fetchPrice({
+                  ...outboundRoute,
+                  date: rtInfo.outboundDate,
+                });
+                outboundInfo = {
+                  outboundPrice,
+                  outboundDate: rtInfo.outboundDate,
+                  outboundLabel: rtInfo.outboundLabel,
+                };
+              }
+            } catch (err) {
+              console.warn(`Failed to fetch outbound price for return flight: ${err.message}`);
+            }
+          }
+          
           const htmlMsg = await buildPriceNotification(
             msgLabel,
             prevPrice,
             newPrice,
             result,
             route,
+            outboundInfo,
           );
           await notify(htmlMsg, [], "HTML");
         } catch (err) {
