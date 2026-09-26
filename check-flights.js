@@ -52,17 +52,25 @@ const _configPassengers = config.passengers ?? {
   infants: 0,
 };
 const PASSENGERS = (() => {
-  const e = {
+  const envPassengers = {
     adults: parseInt(process.env.ADULTS ?? "", 10),
     teens: parseInt(process.env.TEENS ?? "", 10),
     children: parseInt(process.env.CHILDREN ?? "", 10),
     infants: parseInt(process.env.INFANTS ?? "", 10),
   };
   return {
-    adults: isFinite(e.adults) ? e.adults : _configPassengers.adults,
-    teens: isFinite(e.teens) ? e.teens : _configPassengers.teens,
-    children: isFinite(e.children) ? e.children : _configPassengers.children,
-    infants: isFinite(e.infants) ? e.infants : _configPassengers.infants,
+    adults: isFinite(envPassengers.adults)
+      ? envPassengers.adults
+      : _configPassengers.adults,
+    teens: isFinite(envPassengers.teens)
+      ? envPassengers.teens
+      : _configPassengers.teens,
+    children: isFinite(envPassengers.children)
+      ? envPassengers.children
+      : _configPassengers.children,
+    infants: isFinite(envPassengers.infants)
+      ? envPassengers.infants
+      : _configPassengers.infants,
   };
 })();
 
@@ -80,6 +88,11 @@ const PRICE_THRESHOLD = _rawThreshold
 const HTTP_TIMEOUT = 15_000;
 const RETRY_ATTEMPTS = 3;
 const RETRY_DELAY_MS = 1_000;
+const TOTAL_PAX =
+  PASSENGERS.adults +
+  PASSENGERS.teens +
+  PASSENGERS.children +
+  PASSENGERS.infants;
 
 const REQUIRED_ENV = [
   "TELEGRAM_TOKEN",
@@ -186,8 +199,35 @@ async function fetchPrice(route) {
 
   if (res.status !== 200) throw new Error(`Ryanair API ${res.status}`);
 
+  // Validate response structure
+  if (!res.data || typeof res.data !== "object") {
+    throw new Error("Invalid Ryanair API response: missing data");
+  }
   const fares = res.data.fares;
-  return fares?.length ? fares[0].outbound.price.value : null;
+  if (!Array.isArray(fares)) {
+    throw new Error("Invalid Ryanair API response: fares is not an array");
+  }
+  if (fares.length === 0) {
+    return null;
+  }
+
+  const firstFare = fares[0];
+  if (typeof firstFare !== "object" || firstFare === null) {
+    throw new Error(
+      "Invalid Ryanair API response: first fare item is not an object",
+    );
+  }
+  if (
+    !firstFare.outbound ||
+    !firstFare.outbound.price ||
+    typeof firstFare.outbound.price.value !== "number"
+  ) {
+    throw new Error(
+      "Invalid Ryanair API response: missing or invalid price data",
+    );
+  }
+
+  return firstFare.outbound.price.value;
 }
 
 // ── GitHub Gist state ───────────────────────────────────
@@ -209,9 +249,9 @@ async function loadState() {
   return JSON.parse(res.data.files["state.json"].content);
 }
 
-async function saveState(state) {
+async function saveGistFile(fileName, data) {
   const body = JSON.stringify({
-    files: { "state.json": { content: JSON.stringify(state, null, 2) } },
+    files: { [fileName]: { content: JSON.stringify(data, null, 2) } },
   });
   const res = await requestWithRetry(
     {
@@ -227,6 +267,10 @@ async function saveState(state) {
     body,
   );
   if (res.status !== 200) throw new Error(`Gist write ${res.status}`);
+}
+
+async function saveState(state) {
+  await saveGistFile("state.json", state);
 }
 async function loadHistory() {
   const res = await requestWithRetry({
@@ -246,23 +290,7 @@ async function loadHistory() {
 }
 
 async function saveHistory(history) {
-  const body = JSON.stringify({
-    files: { "history.json": { content: JSON.stringify(history, null, 2) } },
-  });
-  const res = await requestWithRetry(
-    {
-      hostname: "api.github.com",
-      path: `/gists/${GIST_ID}`,
-      method: "PATCH",
-      headers: {
-        ...gistHeaders,
-        "Content-Type": "application/json",
-        "Content-Length": Buffer.byteLength(body),
-      },
-    },
-    body,
-  );
-  if (res.status !== 200) throw new Error(`Gist write ${res.status}`);
+  await saveGistFile("history.json", history);
 }
 // ── Telegram ────────────────────────────────────────────
 
@@ -282,7 +310,13 @@ function buildRyanairUrl(from, to, date, passengers = PASSENGERS) {
   return `https://www.ryanair.com/pl/pl/trip/flights/select?${params}`;
 }
 
-function buildRyanairRoundTripUrl(dateOut, dateIn, originIata = "WRO", destIata = "BGY", passengers = PASSENGERS) {
+function buildRyanairRoundTripUrl(
+  dateOut,
+  dateIn,
+  originIata = "WRO",
+  destIata = "BGY",
+  passengers = PASSENGERS,
+) {
   const params = new URLSearchParams({
     adults: String(passengers.adults ?? 1),
     teens: String(passengers.teens ?? 0),
@@ -374,19 +408,14 @@ async function buildPriceNotification(
   route,
   outboundInfo = null,
 ) {
-  const totalPax =
-    PASSENGERS.adults +
-    PASSENGERS.teens +
-    PASSENGERS.children +
-    PASSENGERS.infants;
   const lines = [buildEventHeader(label, oldPrice, newPrice)];
 
   if (newPrice !== null) {
     const oneWayUrl = buildRyanairUrl(route.from, route.to, result.date);
-    const newTotal = fmt(newPrice * totalPax);
+    const newTotal = fmt(newPrice * TOTAL_PAX);
     if (oldPrice !== null && oldPrice !== newPrice) {
-      const oldTotal = fmt(oldPrice * totalPax);
-      const diffTotal = fmt(Math.abs(newPrice - oldPrice) * totalPax);
+      const oldTotal = fmt(oldPrice * TOTAL_PAX);
+      const diffTotal = fmt(Math.abs(newPrice - oldPrice) * TOTAL_PAX);
       const sign = newPrice < oldPrice ? "-" : "+";
       lines.push(
         `\u2192 ${oldTotal} \u2192 <a href="${oneWayUrl}">${newTotal} ${CURRENCY}</a> (${sign}${diffTotal} ${CURRENCY})`,
@@ -404,7 +433,7 @@ async function buildPriceNotification(
           date: rt.dateIn,
         });
         if (inboundPrice !== null) {
-          const rtTotal = fmt((newPrice + inboundPrice) * totalPax);
+          const rtTotal = fmt((newPrice + inboundPrice) * TOTAL_PAX);
           lines.push(
             `\u2194 ${result.label}\u2192${rt.label}: <a href="${rtUrl}">${rtTotal} ${CURRENCY}</a>`,
           );
@@ -431,7 +460,7 @@ async function buildPriceNotification(
       try {
         if (outboundInfo.outboundPrice !== null) {
           const rtTotal = fmt(
-            (outboundInfo.outboundPrice + newPrice) * totalPax,
+            (outboundInfo.outboundPrice + newPrice) * TOTAL_PAX,
           );
           lines.push(
             `\u2194 ${outboundInfo.outboundLabel}\u2192${result.label}: <a href="${rtUrl}">${rtTotal} ${CURRENCY}</a>`,
@@ -496,7 +525,10 @@ function buildReturnFlightMap() {
         // Map: "ROUTE_KEY_DATE" → { outbound route key, outbound date, outbound label }
         // Find the reverse route that matches
         for (const reverseRoute of ROUTES) {
-          if (reverseRoute.from === route.to && reverseRoute.to === route.from) {
+          if (
+            reverseRoute.from === route.to &&
+            reverseRoute.to === route.from
+          ) {
             // Check if this reverse route has the matching return date
             for (const reverseDate of reverseRoute.dates) {
               if (reverseDate.date === rt.dateIn) {
@@ -505,7 +537,10 @@ function buildReturnFlightMap() {
                   outboundRouteKey: route.key,
                   outboundDate: dateEntry.date,
                   outboundLabel: buildLabel(route.label, dateEntry.label),
-                  returnLabel: buildLabel(reverseRoute.label, reverseDate.label),
+                  returnLabel: buildLabel(
+                    reverseRoute.label,
+                    reverseDate.label,
+                  ),
                 };
               }
             }
@@ -517,11 +552,170 @@ function buildReturnFlightMap() {
   return map;
 }
 
+// Update state and history with price change
+function updatePriceState(
+  route,
+  result,
+  state,
+  history,
+  prevPrice,
+  newPrice,
+) {
+  let changed = false;
+  if (prevPrice !== newPrice) {
+    state[route.key][result.date] = { price: newPrice };
+    changed = true;
+  }
+
+  if (newPrice !== null) {
+    const histKey = `${route.key}_${result.date}`;
+    if (!history[histKey]) {
+      history[histKey] = {
+        label: buildLabel(route.label, result.label),
+        entries: [],
+      };
+    }
+    const lastEntry = history[histKey].entries.at(-1);
+    if (!lastEntry || lastEntry.price !== newPrice) {
+      history[histKey].entries.push({
+        price: newPrice,
+        ts: new Date().toISOString(),
+      });
+    }
+  }
+
+  return changed;
+}
+
+// Send price notification with optional outbound info
+async function sendPriceNotificationIfChanged(
+  route,
+  result,
+  prevPrice,
+  newPrice,
+  msgLabel,
+  returnFlightMap,
+) {
+  const msg = buildMessage(
+    msgLabel,
+    prevPrice,
+    newPrice,
+    PRICE_THRESHOLD,
+    TOTAL_PAX,
+  );
+
+  if (!msg) {
+    console.log(`[${route.key}][${result.date}] No change.`);
+    return;
+  }
+
+  console.log(`[${route.key}][${result.date}] \u2192 ${msg}`);
+  try {
+    const returnKey = `${route.key}_${result.date}`;
+    let outboundInfo = null;
+
+    if (returnFlightMap[returnKey]) {
+      const rtInfo = returnFlightMap[returnKey];
+      try {
+        const outboundRoute = ROUTES.find(
+          (r) => r.key === rtInfo.outboundRouteKey,
+        );
+        if (outboundRoute) {
+          const outboundPrice = await fetchPrice({
+            ...outboundRoute,
+            date: rtInfo.outboundDate,
+          });
+          outboundInfo = {
+            outboundPrice,
+            outboundDate: rtInfo.outboundDate,
+            outboundLabel: rtInfo.outboundLabel,
+            outboundFrom: outboundRoute.from,
+            outboundTo: outboundRoute.to,
+          };
+        }
+      } catch (err) {
+        console.warn(
+          `Failed to fetch outbound price for return flight: ${err.message}`,
+        );
+      }
+    }
+
+    const htmlMsg = await buildPriceNotification(
+      msgLabel,
+      prevPrice,
+      newPrice,
+      result,
+      route,
+      outboundInfo,
+    );
+    await notify(htmlMsg, [], "HTML");
+  } catch (err) {
+    console.error(`[${route.key}] Telegram error: ${err.message}`);
+  }
+}
+
+// Send price chart if history exists
+async function sendPriceChartIfAvailable(route, result, history) {
+  if (result.price === null) return;
+
+  const histKey = `${route.key}_${result.date}`;
+  const routeHistory = history[histKey];
+  if (routeHistory && routeHistory.entries.length >= 2) {
+    const chart = buildAsciiChart(routeHistory.label, routeHistory.entries);
+    if (chart) {
+      try {
+        await notify(`<pre>${escapeHtml(chart)}</pre>`, [], "HTML");
+      } catch (err) {
+        console.error(`[${route.key}] Chart error: ${err.message}`);
+      }
+    }
+  }
+}
+
+// Process a single price result for a route and date
+async function processPriceChange(
+  route,
+  result,
+  state,
+  history,
+  returnFlightMap,
+) {
+  const prevPrice = state[route.key][result.date]?.price ?? null;
+  const newPrice = result.price;
+  const msgLabel = buildLabel(route.label, result.label);
+
+  console.log(
+    `[${route.key}][${result.date}] prev=${prevPrice} curr=${newPrice}`,
+  );
+
+  const changed = updatePriceState(
+    route,
+    result,
+    state,
+    history,
+    prevPrice,
+    newPrice,
+  );
+
+  await sendPriceNotificationIfChanged(
+    route,
+    result,
+    prevPrice,
+    newPrice,
+    msgLabel,
+    returnFlightMap,
+  );
+
+  await sendPriceChartIfAvailable(route, result, history);
+
+  return changed;
+}
+
 async function main() {
   const state = await loadState();
   const history = await loadHistory();
   let changed = false;
-  
+
   // Build map of return flights to their outbound flights
   const returnFlightMap = buildReturnFlightMap();
 
@@ -555,108 +749,10 @@ async function main() {
     if (!state[route.key]) state[route.key] = {};
 
     for (const result of dateResults) {
-      const prevPrice = state[route.key][result.date]?.price ?? null;
-      const newPrice = result.price;
-      const msgLabel = buildLabel(route.label, result.label);
-
-      console.log(
-        `[${route.key}][${result.date}] prev=${prevPrice} curr=${newPrice}`,
-      );
-
-      const msg = buildMessage(
-        msgLabel,
-        prevPrice,
-        newPrice,
-        PRICE_THRESHOLD,
-        PASSENGERS.adults +
-          PASSENGERS.teens +
-          PASSENGERS.children +
-          PASSENGERS.infants,
-      );
-
-      if (prevPrice !== newPrice) {
-        state[route.key][result.date] = { price: newPrice };
+      if (
+        await processPriceChange(route, result, state, history, returnFlightMap)
+      ) {
         changed = true;
-      }
-
-      if (newPrice !== null) {
-        const histKey = `${route.key}_${result.date}`;
-        if (!history[histKey]) {
-          history[histKey] = {
-            label: buildLabel(route.label, result.label),
-            entries: [],
-          };
-        }
-        const lastEntry = history[histKey].entries.at(-1);
-        if (!lastEntry || lastEntry.price !== newPrice) {
-          history[histKey].entries.push({
-            price: newPrice,
-            ts: new Date().toISOString(),
-          });
-        }
-      }
-
-      if (msg) {
-        console.log(`[${route.key}][${result.date}] \u2192 ${msg}`);
-        try {
-          // Check if this is a return flight in the map
-          const returnKey = `${route.key}_${result.date}`;
-          let outboundInfo = null;
-          
-          if (returnFlightMap[returnKey]) {
-            const rtInfo = returnFlightMap[returnKey];
-            // Fetch the outbound price
-            try {
-              const outboundRoute = ROUTES.find(r => r.key === rtInfo.outboundRouteKey);
-              if (outboundRoute) {
-                const outboundPrice = await fetchPrice({
-                  ...outboundRoute,
-                  date: rtInfo.outboundDate,
-                });
-                outboundInfo = {
-                  outboundPrice,
-                  outboundDate: rtInfo.outboundDate,
-                  outboundLabel: rtInfo.outboundLabel,
-                  outboundFrom: outboundRoute.from,
-                  outboundTo: outboundRoute.to,
-                };
-              }
-            } catch (err) {
-              console.warn(`Failed to fetch outbound price for return flight: ${err.message}`);
-            }
-          }
-          
-          const htmlMsg = await buildPriceNotification(
-            msgLabel,
-            prevPrice,
-            newPrice,
-            result,
-            route,
-            outboundInfo,
-          );
-          await notify(htmlMsg, [], "HTML");
-        } catch (err) {
-          console.error(`[${route.key}] Telegram error: ${err.message}`);
-        }
-        if (newPrice !== null) {
-          const histKey = `${route.key}_${result.date}`;
-          const routeHistory = history[histKey];
-          if (routeHistory && routeHistory.entries.length >= 2) {
-            const chart = buildAsciiChart(
-              routeHistory.label,
-              routeHistory.entries,
-            );
-            if (chart) {
-              try {
-                await notify(`<pre>${escapeHtml(chart)}</pre>`, [], "HTML");
-              } catch (err) {
-                console.error(`[${route.key}] Chart error: ${err.message}`);
-              }
-            }
-          }
-        }
-      } else {
-        console.log(`[${route.key}][${result.date}] No change.`);
       }
     }
   }
@@ -673,11 +769,6 @@ async function main() {
 // ── Report mode ─────────────────────────────────────────
 
 async function report() {
-  const totalPax =
-    PASSENGERS.adults +
-    PASSENGERS.teens +
-    PASSENGERS.children +
-    PASSENGERS.infants;
   const parts = [];
   const rtLines = [];
 
@@ -697,7 +788,7 @@ async function report() {
       const oneWayUrl = buildRyanairUrl(route.from, route.to, dateEntry.date);
       if (price !== null) {
         dateLines.push(
-          `${dateEntry.label} \u2192 <a href="${oneWayUrl}">${fmt(price * totalPax)} ${CURRENCY}</a>`,
+          `${dateEntry.label} → <a href="${oneWayUrl}">${fmt(price * TOTAL_PAX)} ${CURRENCY}</a>`,
         );
         for (const rt of dateEntry.roundTrip ?? []) {
           const rtUrl = buildRyanairRoundTripUrl(rt.dateOut, rt.dateIn);
@@ -708,7 +799,7 @@ async function report() {
               date: rt.dateIn,
             });
             if (inboundPrice !== null) {
-              const rtTotal = fmt((price + inboundPrice) * totalPax);
+              const rtTotal = fmt((price + inboundPrice) * TOTAL_PAX);
               rtLines.push(
                 `${dateEntry.label} \u2192 ${rt.label}: <a href="${rtUrl}">${rtTotal} ${CURRENCY}</a>`,
               );
