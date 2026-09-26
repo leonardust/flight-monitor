@@ -214,9 +214,9 @@ async function loadState() {
   return JSON.parse(res.data.files["state.json"].content);
 }
 
-async function saveState(state) {
+async function saveGistFile(fileName, data) {
   const body = JSON.stringify({
-    files: { "state.json": { content: JSON.stringify(state, null, 2) } },
+    files: { [fileName]: { content: JSON.stringify(data, null, 2) } },
   });
   const res = await requestWithRetry(
     {
@@ -232,6 +232,10 @@ async function saveState(state) {
     body,
   );
   if (res.status !== 200) throw new Error(`Gist write ${res.status}`);
+}
+
+async function saveState(state) {
+  await saveGistFile("state.json", state);
 }
 async function loadHistory() {
   const res = await requestWithRetry({
@@ -251,23 +255,7 @@ async function loadHistory() {
 }
 
 async function saveHistory(history) {
-  const body = JSON.stringify({
-    files: { "history.json": { content: JSON.stringify(history, null, 2) } },
-  });
-  const res = await requestWithRetry(
-    {
-      hostname: "api.github.com",
-      path: `/gists/${GIST_ID}`,
-      method: "PATCH",
-      headers: {
-        ...gistHeaders,
-        "Content-Type": "application/json",
-        "Content-Length": Buffer.byteLength(body),
-      },
-    },
-    body,
-  );
-  if (res.status !== 200) throw new Error(`Gist write ${res.status}`);
+  await saveGistFile("history.json", history);
 }
 // ── Telegram ────────────────────────────────────────────
 
