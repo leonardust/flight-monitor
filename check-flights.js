@@ -191,8 +191,30 @@ async function fetchPrice(route) {
 
   if (res.status !== 200) throw new Error(`Ryanair API ${res.status}`);
 
+  // Validate response structure
+  if (!res.data || typeof res.data !== "object") {
+    throw new Error("Invalid Ryanair API response: missing data");
+  }
   const fares = res.data.fares;
-  return fares?.length ? fares[0].outbound.price.value : null;
+  if (!Array.isArray(fares)) {
+    throw new Error("Invalid Ryanair API response: fares is not an array");
+  }
+  if (fares.length === 0) {
+    return null;
+  }
+
+  const firstFare = fares[0];
+  if (
+    !firstFare.outbound ||
+    !firstFare.outbound.price ||
+    typeof firstFare.outbound.price.value !== "number"
+  ) {
+    throw new Error(
+      "Invalid Ryanair API response: missing or invalid price data",
+    );
+  }
+
+  return firstFare.outbound.price.value;
 }
 
 // ── GitHub Gist state ───────────────────────────────────
