@@ -307,17 +307,61 @@ git push origin <branch>
 
 **Odpowiedź powinna być krótka i odnosić się do zmian** (jak żądałeś):
 
-```bash
-gh pr review <PR_ID> \
-  --comment-id <THREAD_ID> \
-  --body "✅ Dodane testy:
-- test: sendPriceChartIfAvailable - unchanged price → no notification
-- test: sendPriceChartIfAvailable - changed price with history → chart sent
+#### Step 6a: Find Review Thread ID
 
-Wszystkie testy przechodzą: 25/25 ✅
-PR auto-updated z testami." \
-  --resolve
+```bash
+gh api graphql -f query='
+query {
+  repository(owner: "leonardust", name: "flight-monitor") {
+    pullRequest(number: <PR_ID>) {
+      reviewThreads(first: 10) {
+        nodes {
+          id
+          isResolved
+          comments(first: 1) {
+            nodes {
+              body
+            }
+          }
+        }
+      }
+    }
+  }
+}'
 ```
+
+**Output**: `"id": "PRRT_kwDOSADb7c6mc_lj"` ← copy `pullRequestReviewThreadId`
+
+#### Step 6b: Add Reply to Thread
+
+```bash
+gh api graphql -f query='
+mutation {
+  addPullRequestReviewThreadReply(input: {
+    pullRequestReviewThreadId: "PRRT_kwDOSADb7c6mc_lj"
+    body: "✅ Dodane testy:\n- test: sendPriceChartIfAvailable - unchanged price → no notification\n- test: sendPriceChartIfAvailable - changed price with history → chart sent\n\nWszystkie testy przechodzą: 25/25 ✅\nPR auto-updated z testami."
+  }) {
+    comment { id }
+  }
+}'
+```
+
+**Output**: `"id": "PRRC_kwDOSADb7c71XbtA"` ← reply added to thread
+
+#### Step 6c: Resolve Thread
+
+```bash
+gh api graphql -f query='
+mutation {
+  resolveReviewThread(input: {
+    threadId: "PRRT_kwDOSADb7c6mc_lj"
+  }) {
+    thread { isResolved }
+  }
+}'
+```
+
+**Output**: `"isResolved": true` ✅ Thread closed!```
 
 **Rezultat na GitHubie:**
 
@@ -346,7 +390,9 @@ Agent replied:
 | Błąd                          | Przyczyna                   | Rozwiązanie                                  |
 | ----------------------------- | --------------------------- | -------------------------------------------- |
 | PR not found                  | Zły PR ID                   | Verify z `gh pr view`                        |
-| Thread not found              | Thread ID invalid           | Fetch fresh threads z `gh pr view`           |
+| Thread not found              | Thread ID invalid           | Rerun query z `reviewThreads(first: 10)`     |
+| GraphQL mutation fails        | Wrong parameter name        | Use `pullRequestReviewThreadId` not `threadId` for reply mutation |
+| Thread already resolved       | API error 404               | Query thread status first; skip if already resolved |
 | Tests fail                    | Fix nie działa              | Debug → popraw → retest                      |
 | Security check fails          | Feedback narusza guidelines | Ręczne review + manual fix                   |
 | Push rejected                 | Branch conflicts            | `git pull origin <branch>` → resolve → retry |
