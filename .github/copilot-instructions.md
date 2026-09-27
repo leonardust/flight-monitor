@@ -1,5 +1,7 @@
 # Copilot Instructions — flight-monitor
 
+⚠️ **WAŻNE**: Wszystkie zasady programowania są udokumentowane w **[DEVELOPMENT-GUIDELINES.md](./DEVELOPMENT-GUIDELINES.md)** — obowiązkowe dla WSZYSTKICH agentów, skillów i kodu. Brak wyjątków!
+
 ## Stack
 
 ### check-flights.js (Node.js)
