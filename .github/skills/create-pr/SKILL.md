@@ -1,5 +1,5 @@
 ---
-applyTo: "**"
+applyTo: '**'
 ---
 
 # Skill: Utwórz Pull Request z Gotowej Implementacji
@@ -36,8 +36,9 @@ Przykłady:
 
 ### Commit Message Format
 
-```
+```sh
 <typ>:<treść>
+
 ```
 
 Zasady:
@@ -48,12 +49,13 @@ Zasady:
 
 Przykłady poprawne:
 
-```
+```yaml
 fix: send charts only on price change
 feature: add price threshold filter
 refactor(notifications): extract chart logic
 docs: update README with new routes
 chore: upgrade dependencies
+
 ```
 
 ## Workflow
@@ -68,7 +70,7 @@ chore: upgrade dependencies
 
 Jeśli duże zmiany, zapytaj:
 
-```
+```yaml
 Wykryłem zmiany w: check-flights.js, check-flights.test.js
 
 Czy chcesz:
@@ -76,6 +78,7 @@ a) 1 commit: "fix: send charts only on price change"
 b) 2 commity:
    - commit 1: "fix: send charts only on price change" (check-flights.js)
    - commit 2: "test: update chart notification tests" (check-flights.test.js)
+
 ```
 
 **Obsługa odpowiedzi**:
@@ -90,18 +93,19 @@ b) 2 commity:
 
 **Automatyczne Kategoryzowanie**:
 
-```
+```md
 Kategoria | Foldery/Pliki | Typ PR
 ----------|---------------|-----------
 Code      | check-flights.js, src/** | fix/feature/refactor
 Tests     | *.test.js | test
 Docs      | README.md, docs/** | docs
 Infra     | .agent.md, .github/**, config | chore/feat
+
 ```
 
 **Przykład**:
 
-```
+```ini
 Wykryłem 4 pliki w 3 kategoriach:
 
 Grupa 1 - CODE (aplikacja):
@@ -115,11 +119,12 @@ Czy chcesz:
 a) 1 PR - wszystko razem
 b) 2 PR - osobne PR dla każdej grupy (REKOMENDOWANE)
 c) CUSTOM - sam wybierzesz które pliki do którego PR
+
 ```
 
 **Jeśli c) - Custom Selection**:
 
-```
+```yaml
 Wybierz pliki dla PR #1:
   [✓] check-flights.js
   [ ] .agent.md
@@ -131,6 +136,7 @@ Wybierz pliki dla PR #2:
   [✓] .github/skills/create-pr/SKILL.md
 
 [OK] Dalej
+
 ```
 
 **Rezultat**: Agent tworzy N osobnych PR, każdy z własnymi commitami i metadanymi.
@@ -140,6 +146,7 @@ Wybierz pliki dla PR #2:
 **Algorytm mapowania**:
 
 1. Przeanalizuj pliki które się zmieniły:
+
    - `**/*.js` (główny kod) → domyślnie `fix` lub `refactor`
    - `**/*.test.js` (testy) → `test`
    - `**/README.md`, `**/docs/**` → `docs`
@@ -147,16 +154,18 @@ Wybierz pliki dla PR #2:
    - Nowy plik w `src/` → `feature`
 
 2. Określ typ na podstawie:
+
    - Czy pliki tworzone czy modyfikowane?
    - Czy zmiany to: nowa logika (feature), poprawka (fix), czyszczenie (refactor)?
 
 3. Jeśli wieloaspektowy (mix feature + test + docs):
+
    - Weź dominujący typ (Feature > Fix > Refactor > Test > Docs > Chore)
    - Proponuj ogólniejszy opis
 
 **Przykłady**:
 
-```
+```yaml
 Zmieniony check-flights.js + test
 → Typ: fix
 → Branch: fix/send-charts-only-on-change
@@ -168,6 +177,7 @@ Nowy plik utils/helpers.js + README
 Refactor 3 pliki, brak testów
 → Typ: refactor
 → Branch: refactor/notification-system
+
 ```
 
 ### 4. Tytuł i opis PR
@@ -187,20 +197,21 @@ Refactor 3 pliki, brak testów
 
 Przykład:
 
-```
+```ini
 **Tytuł**: fix: send price charts only on price change
 
 **Opis**:
 Wykresy z ostatnimi 10 cenami wysyłają się teraz tylko gdy cena się zmieni.
 Wcześniej wysyłały się przy każdym sprawdzeniu, co generowało zbyt wiele notyfikacji.
 Zmiana poprawia sygnał/szum - użytkownik otrzymuje tylko istotne notyfikacje.
+
 ```
 
 ### 5. Preview do zatwierdzenia
 
 Pokaż użytkownikowi:
 
-```
+```ini
 ══════════════════════════════════════════════════════════
 📋 PREVIEW PULL REQUEST
 ══════════════════════════════════════════════════════════
@@ -234,6 +245,7 @@ Opcje:
   [?] Help
 
 ✓ Co robisz? [Y/E/N/?]
+
 ```
 
 **Obsługa odpowiedzi**:
@@ -243,23 +255,32 @@ Opcje:
 - `N` → Anuluj operację, `Skill aborted`
 - `?` → Pokaż help o opcjach
 
-### 6. Git Operations
+### 6. Git Operations (Multi-PR Workflow)
 
 Po potwierdzeniu (Y):
 
 1. **Przełącz na świeży main**:
-   ```bash
-   git fetch origin
-   git checkout main
-   git pull origin main
-   ```
+
+```bash
+git fetch origin
+git checkout main
+git pull origin main
+
+```
+
 2. **Utwórz branch od main**:
-   ```bash
-   git checkout -b <branch>
-   ```
+
+```bash
+git checkout -b <branch>
+
+```
+
 3. Stage zmienione pliki
+
 4. Commit(y) z konwencją
+
 5. `git push origin <branch>`
+
 6. GitHub API: Utwórz PR w statusie **open** (patrz: Krok 7)
 
 ## Konkrety implementacji
@@ -290,6 +311,7 @@ Po potwierdzeniu (Y):
 
 ```bash
 copilot skill: create-pr
+
 ```
 
 Skill:
