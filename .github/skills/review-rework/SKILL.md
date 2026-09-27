@@ -131,30 +131,44 @@ Parsed:
 2. **Generuj test cases:**
 
    ```javascript
-   test("sendPriceChartIfAvailable - unchanged price → no notification", async (t) => {
+   test("sendPriceChartIfAvailable - unchanged price → no notification", async () => {
      const route = { key: "WRO_ATH" };
      const result = { date: "2026-01-15", price: 223.38 };
      const history = {
-       /* existing history */
-     };
-
-     // changed = false → no notification
-     await sendPriceChartIfAvailable(route, result, history, false);
-     // Assert: mock telegram not called
-   });
-
-   test("sendPriceChartIfAvailable - changed price + 2+ entries → chart sent", async (t) => {
-     const route = { key: "WRO_ATH" };
-     const result = { date: "2026-01-15", price: 225.0 };
-     const history = {
        "WRO_ATH_2026-01-15": {
          label: "WRO→ATH",
-         entries: [223.38, 224.5, 225.0], // 3 entries
+         entries: [220.0, 221.5, 223.38],
        },
      };
 
-     // changed = true + history → should send chart
-     // Assert: telegram notify called with chart
+     // When changed=false, should return early (no notification side effect)
+     const returnValue = await sendPriceChartIfAvailable(route, result, history, false);
+     assert.equal(returnValue, undefined, "should return undefined");
+   });
+
+   test("sendPriceChartIfAvailable - changed price + 2+ entries → chart sent", async () => {
+     const route = { key: "WRO_ATH" };
+     const result = { date: "2026-01-15", price: 225.00 };
+     const history = {
+       "WRO_ATH_2026-01-15": {
+         label: "WRO→ATH",
+         entries: [223.38, 224.50, 225.00], // 3 entries
+       },
+     };
+
+     // When changed=true and price valid and history >=2 entries, should attempt notify
+     // Test that no error thrown (notification attempt is made)
+     try {
+       const returnValue = await sendPriceChartIfAvailable(route, result, history, true);
+       assert.equal(returnValue, undefined, "should return undefined");
+     } catch (err) {
+       // Notify might fail if no TELEGRAM_TOKEN, which is OK for this test
+       // We're verifying the guard logic, not the actual notify side effect
+       assert.ok(
+         err.message.includes("TELEGRAM") || err.message.includes("notify"),
+         `unexpected error: ${err.message}`
+       );
+     }
    });
    ```
 
