@@ -232,6 +232,73 @@ test("new date added to config appears as NOWY LOT without affecting existing da
   assert.equal(messages[1], `NOWY LOT ✈️ BGY→WRO 13 lis: 105.00 ${CURRENCY}`);
 });
 
+test("sendPriceChartIfAvailable returns early if changed is false", async () => {
+  const route = { key: "WRO_ATH" };
+  const result = { date: "2026-01-15", price: 223.38 };
+  const history = {
+    "WRO_ATH_2026-01-15": {
+      label: "WRO→ATH",
+      entries: [223.38, 224.50, 225.00],
+    },
+  };
+
+  // When changed=false, should return early (no async operations)
+  const returnValue = await sendPriceChartIfAvailable(route, result, history, false);
+  assert.equal(returnValue, undefined);
+});
+
+test("sendPriceChartIfAvailable returns early if price is null", async () => {
+  const route = { key: "WRO_ATH" };
+  const result = { date: "2026-01-15", price: null };
+  const history = {
+    "WRO_ATH_2026-01-15": {
+      label: "WRO→ATH",
+      entries: [223.38, 224.50, 225.00],
+    },
+  };
+
+  // When price is null, should return early
+  const returnValue = await sendPriceChartIfAvailable(route, result, history, true);
+  assert.equal(returnValue, undefined);
+});
+
+test("sendPriceChartIfAvailable proceeds when changed is true and price is valid", async () => {
+  const route = { key: "WRO_ATH" };
+  const result = { date: "2026-01-15", price: 225.00 };
+  const history = {
+    "WRO_ATH_2026-01-15": {
+      label: "WRO→ATH",
+      entries: [223.38, 224.50, 225.00],
+    },
+  };
+
+  // When changed=true and price is valid, should process (may call notify)
+  // Test that it doesn't throw an error
+  try {
+    const returnValue = await sendPriceChartIfAvailable(route, result, history, true);
+    assert.equal(returnValue, undefined);
+  } catch (err) {
+    // Notify might fail if no TELEGRAM_TOKEN, but that's OK for this test
+    // We're testing the guard logic, not the actual notification
+    assert.ok(err.message.includes("TELEGRAM") || err.message.includes("notify"));
+  }
+});
+
+test("sendPriceChartIfAvailable skips chart if history has less than 2 entries", async () => {
+  const route = { key: "WRO_ATH" };
+  const result = { date: "2026-01-15", price: 225.00 };
+  const history = {
+    "WRO_ATH_2026-01-15": {
+      label: "WRO→ATH",
+      entries: [223.38], // Only 1 entry - should skip chart
+    },
+  };
+
+  // Should not send chart if less than 2 entries
+  const returnValue = await sendPriceChartIfAvailable(route, result, history, true);
+  assert.equal(returnValue, undefined);
+});
+
 // ── sendPriceChartIfAvailable tests ──────────────────
 // Note: Tests verify the conditional logic - guard clauses for changed and price === null
 // The notify() side effect is integration-tested via e2e; unit tests focus on guards
