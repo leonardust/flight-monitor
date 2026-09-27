@@ -1,13 +1,17 @@
 # Copilot Instructions — flight-monitor
 
+⚠️ **WAŻNE**: Wszystkie zasady programowania są udokumentowane w **[DEVELOPMENT-GUIDELINES.md](./DEVELOPMENT-GUIDELINES.md)** — obowiązkowe dla WSZYSTKICH agentów, skillów i kodu. Brak wyjątków!
+
 ## Stack
 
 ### check-flights.js (Node.js)
+
 - Runtime: Node.js (CommonJS, `"use strict"`)
 - HTTP client: plain `https` module, no external HTTP clients
 - Tests: Node.js built-in `node:test` + `assert`
 
 ### worker/src/index.js (Cloudflare Worker)
+
 - Runtime: ESM (ECMAScript modules)
 - HTTP client: platform `fetch` API
 - Environment: Cloudflare Workers runtime (not Node.js)
@@ -60,6 +64,7 @@ worker/src/index.js  # Cloudflare Worker: osobny runtime (ESM, fetch API)
 ```
 
 **Ważne:** `check-flights.js` (Node.js CommonJS) i `worker/` (ESM) to oddzielne runtime-y:
+
 - `check-flights.js` używa `https` module (Node.js)
 - `worker/src/index.js` używa `fetch` API (Cloudflare platform)
 - Zmienia w `check-flights.js` nie wpływają automatycznie na `worker/` i odwrotnie
