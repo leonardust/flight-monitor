@@ -839,6 +839,7 @@ module.exports = {
   fmt,
   PRICE_THRESHOLD,
   report,
+  sendPriceChartIfAvailable,
 };
 
 if (require.main === module) {
