@@ -553,14 +553,7 @@ function buildReturnFlightMap() {
 }
 
 // Update state and history with price change
-function updatePriceState(
-  route,
-  result,
-  state,
-  history,
-  prevPrice,
-  newPrice,
-) {
+function updatePriceState(route, result, state, history, prevPrice, newPrice) {
   let changed = false;
   if (prevPrice !== newPrice) {
     state[route.key][result.date] = { price: newPrice };
@@ -654,9 +647,9 @@ async function sendPriceNotificationIfChanged(
   }
 }
 
-// Send price chart if history exists
-async function sendPriceChartIfAvailable(route, result, history) {
-  if (result.price === null) return;
+// Send price chart if history exists and price changed
+async function sendPriceChartIfAvailable(route, result, history, changed) {
+  if (!changed || result.price === null) return;
 
   const histKey = `${route.key}_${result.date}`;
   const routeHistory = history[histKey];
@@ -706,7 +699,7 @@ async function processPriceChange(
     returnFlightMap,
   );
 
-  await sendPriceChartIfAvailable(route, result, history);
+  await sendPriceChartIfAvailable(route, result, history, changed);
 
   return changed;
 }
