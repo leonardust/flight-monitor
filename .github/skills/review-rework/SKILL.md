@@ -16,8 +16,8 @@ triggers:
 applyTo: "**"
 
 skills:
-  - review-code     # Analiza kodu vs guidelines
-  - create-pr       # Commit + push
+  - review-code # Analiza kodu vs guidelines
+  - create-pr # Commit + push
 
 keywords:
   - pr
@@ -33,9 +33,10 @@ keywords:
 ## 🎯 Cel
 
 Automatycznie obsługuje review feedback z GitHub PR:
+
 - ✅ Parsuj komentarze
 - ✅ Implementuj poprawki (testy, refactor, security)
-- ✅ Weryfikuj vs [DEVELOPMENT-GUIDELINES](../DEVELOPMENT-GUIDELINES.md)
+- ✅ Weryfikuj vs [DEVELOPMENT-GUIDELINES](../../DEVELOPMENT-GUIDELINES.md)
 - ✅ Commituj + push
 - ✅ Auto-reply w wątku
 - ✅ Zamknij wątek (resolve)
@@ -66,6 +67,7 @@ gh pr view <PR_ID> --json reviewThreads,comments
 ```
 
 **Output:**
+
 ```json
 {
   "reviewThreads": [
@@ -90,18 +92,19 @@ gh pr view <PR_ID> --json reviewThreads,comments
 
 **Pattern Matching** dla popularnych feedback'ów:
 
-| Feedback | Typ | Akcja |
-|----------|-----|-------|
-| "add test" / "add coverage" | **TEST** | Dodaj test do test file |
-| "add logging" / "log more" | **LOGGING** | Dodaj `console.log/error` z kontekstem |
-| "security issue" / "hardcoded" | **SECURITY** | Usuń hardcoding, przenieś do env |
-| "refactor" / "simplify" | **REFACTOR** | Uprość kod, wydziel funkcje |
-| "add validation" / "validate input" | **VALIDATION** | Dodaj input checks |
-| "update docs" / "document" | **DOCS** | Zaktualizuj comments/README |
+| Feedback                            | Typ            | Akcja                                  |
+| ----------------------------------- | -------------- | -------------------------------------- |
+| "add test" / "add coverage"         | **TEST**       | Dodaj test do test file                |
+| "add logging" / "log more"          | **LOGGING**    | Dodaj `console.log/error` z kontekstem |
+| "security issue" / "hardcoded"      | **SECURITY**   | Usuń hardcoding, przenieś do env       |
+| "refactor" / "simplify"             | **REFACTOR**   | Uprość kod, wydziel funkcje            |
+| "add validation" / "validate input" | **VALIDATION** | Dodaj input checks                     |
+| "update docs" / "document"          | **DOCS**       | Zaktualizuj comments/README            |
 
 **Przykład dla PR #21:**
+
 ```
-Feedback: "Please add coverage for both an unchanged price (no chart notification) 
+Feedback: "Please add coverage for both an unchanged price (no chart notification)
            and a changed price with at least two history entries"
 
 Parsed:
@@ -120,32 +123,36 @@ Parsed:
 **Dla TEST type:**
 
 1. **Analiza istniejących testów:**
+
    ```bash
    grep -n "sendPriceChartIfAvailable\|processPriceChange" check-flights.test.js
    ```
 
 2. **Generuj test cases:**
+
    ```javascript
-   test('sendPriceChartIfAvailable - unchanged price → no notification', async (t) => {
-     const route = { key: 'WRO_ATH' };
-     const result = { date: '2026-01-15', price: 223.38 };
-     const history = { /* existing history */ };
-     
+   test("sendPriceChartIfAvailable - unchanged price → no notification", async (t) => {
+     const route = { key: "WRO_ATH" };
+     const result = { date: "2026-01-15", price: 223.38 };
+     const history = {
+       /* existing history */
+     };
+
      // changed = false → no notification
      await sendPriceChartIfAvailable(route, result, history, false);
      // Assert: mock telegram not called
    });
-   
-   test('sendPriceChartIfAvailable - changed price + 2+ entries → chart sent', async (t) => {
-     const route = { key: 'WRO_ATH' };
-     const result = { date: '2026-01-15', price: 225.00 };
+
+   test("sendPriceChartIfAvailable - changed price + 2+ entries → chart sent", async (t) => {
+     const route = { key: "WRO_ATH" };
+     const result = { date: "2026-01-15", price: 225.0 };
      const history = {
-       'WRO_ATH_2026-01-15': {
-         label: 'WRO→ATH',
-         entries: [223.38, 224.50, 225.00]  // 3 entries
-       }
+       "WRO_ATH_2026-01-15": {
+         label: "WRO→ATH",
+         entries: [223.38, 224.5, 225.0], // 3 entries
+       },
      };
-     
+
      // changed = true + history → should send chart
      // Assert: telegram notify called with chart
    });
@@ -166,7 +173,8 @@ const TOKEN = "12345abcdef";
 
 // After: ✅ Env-based
 const TOKEN = process.env.MY_TOKEN;
-if (!TOKEN) throw new Error('[SECURITY] MY_TOKEN not configured in environment');
+if (!TOKEN)
+  throw new Error("[SECURITY] MY_TOKEN not configured in environment");
 ```
 
 **Dla VALIDATION type:**
@@ -179,7 +187,7 @@ function processPrice(price) {
 
 // After: ✅ With validation
 function processPrice(price) {
-  if (typeof price !== 'number') {
+  if (typeof price !== "number") {
     throw new Error(`Invalid price type: expected number, got ${typeof price}`);
   }
   if (!isFinite(price) || price < 0) {
@@ -231,12 +239,13 @@ function processPrice(price) {
 ```
 
 **Dla PR #21 — Checklist:**
+
 ```
 ✅ SOLID: Tests isolate sendPriceChartIfAvailable() — Single Responsibility OK
 ✅ DRY: Testy nie powtarzają logiki
 ✅ KISS: Proste assertions — if chart sent or not
 ✅ YAGNI: Tylko testy coverage dla feedback
-✅ Clean Code: 
+✅ Clean Code:
   - Nazewnictwo: test descriptions jasne
   - Testy: krótkie, focused
 ✅ Security: Brak security issues w testach
@@ -260,6 +269,7 @@ node --test check-flights.test.js
 ```
 
 **Jeśli testy NIE przechodzą:**
+
 - [ ] Debug i fix
 - [ ] Powtórz `node --test`
 - [ ] Dopiero po sukcesie → commit
@@ -308,7 +318,7 @@ Agent replied:
   "✅ Dodane testy:
    - test: sendPriceChartIfAvailable - unchanged price → no notification
    - test: sendPriceChartIfAvailable - changed price with history → chart sent
-   
+
    Wszystkie testy przechodzą: 25/25 ✅
    PR auto-updated z testami."
 
@@ -319,14 +329,14 @@ Agent replied:
 
 ## 🔧 Error Handling
 
-| Błąd | Przyczyna | Rozwiązanie |
-|------|-----------|------------|
-| PR not found | Zły PR ID | Verify z `gh pr view` |
-| Thread not found | Thread ID invalid | Fetch fresh threads z `gh pr view` |
-| Tests fail | Fix nie działa | Debug → popraw → retest |
-| Security check fails | Feedback narusza guidelines | Ręczne review + manual fix |
-| Push rejected | Branch conflicts | `git pull origin <branch>` → resolve → retry |
-| GitHub API error (rate limit) | 429 Too Many Requests | Czekaj 60 sec → retry |
+| Błąd                          | Przyczyna                   | Rozwiązanie                                  |
+| ----------------------------- | --------------------------- | -------------------------------------------- |
+| PR not found                  | Zły PR ID                   | Verify z `gh pr view`                        |
+| Thread not found              | Thread ID invalid           | Fetch fresh threads z `gh pr view`           |
+| Tests fail                    | Fix nie działa              | Debug → popraw → retest                      |
+| Security check fails          | Feedback narusza guidelines | Ręczne review + manual fix                   |
+| Push rejected                 | Branch conflicts            | `git pull origin <branch>` → resolve → retry |
+| GitHub API error (rate limit) | 429 Too Many Requests       | Czekaj 60 sec → retry                        |
 
 ---
 
@@ -387,14 +397,14 @@ Result: Feedback fully addressed in ~2 min ✅
 Input:
   PR: #21
   Feedback: "Please add coverage for unchanged price and changed price + 2+ entries"
-  
+
 Process:
   Type: TEST
   Files: check-flights.test.js
   Action: Add 2 test cases
   Verify: All tests pass (25/25)
   Commit: "test: add chart notification tests..."
-  
+
 Output:
   ✅ PR #21 updated with tests
   ✅ Thread resolved
@@ -406,7 +416,7 @@ Output:
 ```
 Input:
   Feedback: "API key is hardcoded in config. Move to environment variable."
-  
+
 Process:
   Type: SECURITY
   Files: check-flights.js
@@ -414,7 +424,7 @@ Process:
     - Remove: const API_KEY = "sk-12345"
     - Add: const API_KEY = process.env.FLIGHT_API_KEY
   Verify: No hardcoded secrets, env check present
-  
+
 Output:
   ✅ Secrets moved to env
   ✅ Error message if env not set
@@ -426,7 +436,7 @@ Output:
 ```
 Input:
   Feedback: "processPriceChange is 50+ lines. Refactor into smaller functions."
-  
+
 Process:
   Type: REFACTOR
   Action:
@@ -434,7 +444,7 @@ Process:
     - Extract: sendNotificationIfChanged()
     - Extract: sendPriceChartIfAvailable()
   Verify: SOLID — each function single responsibility
-  
+
 Output:
   ✅ Code refactored, functions ~15-20 lines each
   ✅ All tests pass
@@ -444,9 +454,9 @@ Output:
 
 ## 🔗 Linki
 
-- **[DEVELOPMENT-GUIDELINES.md](../DEVELOPMENT-GUIDELINES.md)** — Enforcement checklist
-- **[review-code/SKILL.md](../skills/review-code/SKILL.md)** — Automated code analysis
-- **[create-pr/SKILL.md](../skills/create-pr/SKILL.md)** — PR creation
+- **[DEVELOPMENT-GUIDELINES.md](../../DEVELOPMENT-GUIDELINES.md)** — Enforcement checklist
+- **[review-code/SKILL.md](../review-code/SKILL.md)** — Automated code analysis
+- **[create-pr/SKILL.md](../create-pr/SKILL.md)** — PR creation
 - **[.agent.md](../../.agent.md)** — Agent configuration
 
 ---

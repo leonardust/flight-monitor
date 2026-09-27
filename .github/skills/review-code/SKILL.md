@@ -6,7 +6,7 @@ argument-hint: "opcjonalnie: ścieżka do pliku (np. check-flights.js)"
 
 # Code Review — zasady programowania
 
-⚠️ **WAŻNE**: Ten skill implementuje zasady z **[DEVELOPMENT-GUIDELINES.md](../DEVELOPMENT-GUIDELINES.md)** — obowiązkowe dla wszystkich agentów i kodu. Brak wyjątków!
+⚠️ **WAŻNE**: Ten skill implementuje zasady z **[DEVELOPMENT-GUIDELINES.md](../../DEVELOPMENT-GUIDELINES.md)** — obowiązkowe dla wszystkich agentów i kodu. Brak wyjątków!
 
 ## Kiedy używać
 
@@ -19,7 +19,7 @@ argument-hint: "opcjonalnie: ścieżka do pliku (np. check-flights.js)"
 
 1. **Wczytaj plik(i) do przeglądu** — jeśli nie podano argumentu, przejrzyj wszystkie pliki `.js` w projekcie (z wyjątkiem `node_modules/`)
 
-2. **Sprawdź każdą zasadę** (per [DEVELOPMENT-GUIDELINES](../DEVELOPMENT-GUIDELINES.md)):
+2. **Sprawdź każdą zasadę** (per [DEVELOPMENT-GUIDELINES](../../DEVELOPMENT-GUIDELINES.md)):
 
    ### SOLID
    - Czy funkcja robi tylko jedną rzecz? (SRP)
@@ -64,6 +64,7 @@ argument-hint: "opcjonalnie: ścieżka do pliku (np. check-flights.js)"
 Skill `review-code` MUSI zawsze sprawdzić te punkty **PRZED finalnym committem**:
 
 ### Krok 1: Code Analysis
+
 ```bash
 # ESLint/Prettier (jeśli dostępne)
 npm run lint 2>/dev/null || echo "ESLint not configured"
@@ -73,35 +74,42 @@ node --test check-flights.test.js 2>/dev/null || echo "Tests not configured"
 ```
 
 ### Krok 2: SOLID Checklist
+
 - [ ] Single Responsibility: każda funkcja robi 1 rzecz?
 - [ ] Open/Closed: konfiguracja nie hardcoded?
 - [ ] Dependency Inversion: parametry/env, nie hardcoded?
 
 ### Krok 3: DRY Checklist
+
 - [ ] Brak powtórzeń logiki (kod nie pojawia się 2+ razy)?
 - [ ] Config ładowany raz?
 
 ### Krok 4: KISS Checklist
+
 - [ ] Prostota: nie over-engineered?
 - [ ] async/await zamiast Promise?
 - [ ] Stałe nie magic numbers?
 
 ### Krok 5: YAGNI Checklist
+
 - [ ] Tylko to co potrzebne?
 - [ ] Brak przyszłościowych features?
 
 ### Krok 6: Clean Code Checklist
+
 - [ ] Nazewnictwo: camelCase/UPPER_SNAKE_CASE OK?
 - [ ] Funkcje: max 30 linii, 1 abstrakcja?
 - [ ] Komentarze: tylko gdy niezbędne?
 - [ ] Błędy: descriptive, nie silent?
 
 ### Krok 7: Security Checklist
+
 - [ ] Sekrety w env tylko (NO hardcoded)?
 - [ ] Input validation present?
 - [ ] Nie logujesz sekrety?
 
 **Rezultat** — Report:
+
 ```
 ✅ SOLID: Pass
 ✅ DRY: Pass
@@ -118,7 +126,7 @@ node --test check-flights.test.js 2>/dev/null || echo "Tests not configured"
 
 ## 🔗 Linki
 
-- **[DEVELOPMENT-GUIDELINES.md](../DEVELOPMENT-GUIDELINES.md)** — Core principles (enforcement source)
-- **[review-rework/SKILL.md](../skills/review-rework/SKILL.md)** — Feedback implementation
-- **[create-pr/SKILL.md](../skills/create-pr/SKILL.md)** — PR automation
+- **[DEVELOPMENT-GUIDELINES.md](../../DEVELOPMENT-GUIDELINES.md)** — Core principles (enforcement source)
+- **[review-rework/SKILL.md](../review-rework/SKILL.md)** — Feedback implementation
+- **[create-pr/SKILL.md](../create-pr/SKILL.md)** — PR automation
 - **[.agent.md](../../.agent.md)** — Agent triggers

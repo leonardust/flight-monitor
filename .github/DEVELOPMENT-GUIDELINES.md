@@ -7,6 +7,7 @@
 # 🎯 Zasady Programowania — Obowiązkowe dla Wszystkich Agentów
 
 ## ✅ Obowiązkowe dla:
+
 - ✓ Pisania nowego kodu (create-pr skill, feature implementation)
 - ✓ Reworku na bazie review (review-rework skill)
 - ✓ Refactoringu (review-code skill)
@@ -21,19 +22,30 @@
 ## 📚 SOLID Principles
 
 ### Single Responsibility
+
 - Każda funkcja robi **jedną rzecz**
 - Każdy moduł ma **jedną przyczynę do zmiany**
 - Osobne funkcje do: ładowania config, budowania URL, parsowania, walidacji, notyfikacji
 
 **Przykład — OK:**
+
 ```javascript
-function loadConfig() { /* ładowanie */ }
-function buildFlightUrl(route) { /* URL */ }
-function parseFlightResponse(json) { /* parsowanie */ }
-function sendNotification(message) { /* notyfikacja */ }
+function loadConfig() {
+  /* ładowanie */
+}
+function buildFlightUrl(route) {
+  /* URL */
+}
+function parseFlightResponse(json) {
+  /* parsowanie */
+}
+function sendNotification(message) {
+  /* notyfikacja */
+}
 ```
 
 **Przykład — ❌ ZŁYCH:**
+
 ```javascript
 // ❌ Mieszanie concerns — ZABRONIONE
 async function getAllAndNotify() {
@@ -49,11 +61,13 @@ async function getAllAndNotify() {
 ---
 
 ### Open/Closed Principle
+
 - Otwarty na **rozszerzenie** (new features), **zamknięty na modyfikację**
 - Nowe trasy/waluty/konfiguracja → przez `config.json`, NIE przez zmianę kodu
 - Nowy typ notyfikacji → nowy handler, NIE modyfikacja istniejącego
 
 **Przykład — OK:**
+
 ```javascript
 // config.json
 {
@@ -67,23 +81,27 @@ async function getAllAndNotify() {
 ---
 
 ### Liskov Substitution Principle
+
 - Podtypy MUSZĄ być wymienne z typem bazowym
 - Nie naruszaj kontraktu interfejsu
 
 ---
 
 ### Interface Segregation
+
 - Małe, wyspecjalizowane interfejsy zamiast jednego dużego
 - Handler notyfikacji Telegram ≠ Handler Slack
 
 ---
 
 ### Dependency Inversion
+
 - Zależności **ZAWSZE** przez parametry, konfigurację, zmienne środowiskowe
 - **NIGDY** hardcoded (tokeny, ID, URL)
 - Pattern: `loadConfig()` raz na startup, pass everywhere
 
 **Przykład — OK:**
+
 ```javascript
 const config = loadConfig();
 async function sendNotification(message, token = config.telegramToken) {
@@ -92,9 +110,10 @@ async function sendNotification(message, token = config.telegramToken) {
 ```
 
 **Przykład — ❌ ZABRONIONE:**
+
 ```javascript
 // ❌ Hardcoded token
-const TOKEN = "12345abcdef";  // SEKRETY W ENV TYLKO!
+const TOKEN = "12345abcdef"; // SEKRETY W ENV TYLKO!
 ```
 
 ---
@@ -106,9 +125,10 @@ const TOKEN = "12345abcdef";  // SEKRETY W ENV TYLKO!
 - Wspólne utility'i (date formatting, URL building) → funkcja, nie inline
 
 **Przykład — OK:**
+
 ```javascript
 function formatDateKey(date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
 // Użytkownik wszędzie
@@ -116,10 +136,11 @@ const key = formatDateKey(new Date());
 ```
 
 **Przykład — ❌ ZŁYCH:**
+
 ```javascript
 // ❌ Powtórzenie — ZABRONIONE
-const key1 = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-const key2 = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+const key1 = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+const key2 = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 ```
 
 ---
@@ -133,6 +154,7 @@ const key2 = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0
 - Brak magic numbers — użyj named constants
 
 **Przykład — OK:**
+
 ```javascript
 async function fetchPrice(route) {
   try {
@@ -146,12 +168,19 @@ async function fetchPrice(route) {
 ```
 
 **Przykład — ❌ ZŁYCH:**
+
 ```javascript
 // ❌ Over-engineering dla 1 przypadku użycia
 class PriceFetcher {
-  constructor() { this.cache = new Map(); }
-  async fetch(route) { /* ... */ }
-  clear() { /* ... */ }
+  constructor() {
+    this.cache = new Map();
+  }
+  async fetch(route) {
+    /* ... */
+  }
+  clear() {
+    /* ... */
+  }
 }
 ```
 
@@ -164,10 +193,15 @@ class PriceFetcher {
 - Nie twórz pomocniczych abstrakcji dla jednorazowych operacji
 
 **Przykład — ❌ ZABRONIONE:**
+
 ```javascript
 // ❌ "Może się kiedyś przyda?" — ZAKAZANE
-function buildAdvancedCachingSystem() { /* ... */ }
-function createPluginArchitecture() { /* ... */ }
+function buildAdvancedCachingSystem() {
+  /* ... */
+}
+function createPluginArchitecture() {
+  /* ... */
+}
 ```
 
 ---
@@ -175,63 +209,74 @@ function createPluginArchitecture() { /* ... */ }
 ## 📝 Clean Code
 
 ### Nazewnictwo
+
 - **`camelCase`** dla zmiennych/funkcji: `buildFlightUrl`, `processPriceChange`
 - **`UPPER_SNAKE_CASE`** dla stałych konfiguracyjnych: `MAX_RETRIES`, `DEFAULT_TIMEOUT`
 - **`PascalCase`** dla klas/typów: `PriceParser`, `NotificationHandler`
 - **Opisowe** zamiast skrótów: `buildFlightUrl` ✅ zamiast `getUrl` ❌
 
 ### Funkcje
+
 - **Krótkie** — max 30 linii kodu
 - **Jeden poziom abstrakcji** — nie mieszaj wysokiego i niskiego poziomu
 - **Bez efektów ubocznych** gdzie to możliwe
 - **Parametry** — max 3-4, jeśli więcej → object destructuring
 
 **Przykład — OK:**
+
 ```javascript
 async function processPriceChange(route, result, state, history) {
   const prevPrice = state[route.key]?.[result.date]?.price;
   const newPrice = result.price;
   const changed = prevPrice !== newPrice;
-  
+
   if (changed) {
     updatePriceState(route, result, state, newPrice);
     await sendNotification(route, result, newPrice);
   }
-  
+
   return changed;
 }
 ```
 
 ### Komentarze
+
 - **TYLKO gdy kod nie tłumaczy się sam**
 - Preferuj czytelny kod nad komentarzem
 - **ZAKAZ docstringów/komentarzy do kodu którego nie zmieniasz**
 
 **Przykład — OK:**
+
 ```javascript
 // Calculate date key for history lookup (format: YYYY-MM-DD)
 const dateKey = formatDateKey(result.date);
 ```
 
 **Przykład — ❌ ZABRONIONE:**
+
 ```javascript
 // ❌ Zbędny komentarz
 const dateKey = formatDateKey(result.date); // format date
 ```
 
 ### Błędy
+
 - **Rzucaj błędy z opisowym komunikatem**, nie "error"
 - **NIGDY nie połykaj wyjątków** (`catch (e) {}`)
 - `console.error()` z kontekstem
 
 **Przykład — OK:**
+
 ```javascript
 if (!config.telegramToken) {
-  throw new Error('[TELEGRAM] TELEGRAM_TOKEN not found in environment. Please set it.');
+  throw new Error(
+    "[TELEGRAM] TELEGRAM_TOKEN not found in environment. Please set it.",
+  );
 }
 ```
 
 **Przykład — ❌ ZABRONIONE:**
+
 ```javascript
 // ❌ Połykanie wyjątków — ZAKAZANE
 try {
@@ -246,18 +291,21 @@ try {
 ## 🔒 Bezpieczeństwo (OWASP Top 10)
 
 ### Secrets & Credentials
+
 - **ZAWSZE i WYŁĄCZNIE** przez zmienne środowiskowe (`process.env.VAR`)
 - **NIGDY w kodzie** — no hardcoded tokens/passwords
 - **NIGDY w plikach konfiguracyjnych** śledzone przez git
 - `.env` i `config.local.json` → `.gitignore`
 
 **Przykład — OK:**
+
 ```javascript
 const telegramToken = process.env.TELEGRAM_TOKEN ?? process.env.TG_TOKEN;
-if (!telegramToken) throw new Error('[TELEGRAM] Token not configured');
+if (!telegramToken) throw new Error("[TELEGRAM] Token not configured");
 ```
 
 **Przykład — ❌ ZABRONIONE:**
+
 ```javascript
 // ❌ NIGDY nie rob tego
 const TOKEN = "123456abcdef";
@@ -265,14 +313,16 @@ const API_KEY = "sk-1234567890";
 ```
 
 ### Input Validation
+
 - **Waliduj dane wejściowe** z zewnętrznych źródeł (API, formularze, pliki)
 - Sprawdzaj typy i wartości PRZED użyciem
 - Nie ufaj danym z zewnętrznych API
 
 **Przykład — OK:**
+
 ```javascript
 function parsePrice(response) {
-  if (typeof response.price !== 'number') {
+  if (typeof response.price !== "number") {
     throw new Error(`Invalid price: ${response.price}`);
   }
   if (!isFinite(response.price) || response.price < 0) {
@@ -283,6 +333,7 @@ function parsePrice(response) {
 ```
 
 ### Logging
+
 - **NIGDY nie loguj**:
   - Tokenów, hasła, API keys
   - Danych osobowych (email, phone, ID)
@@ -290,25 +341,29 @@ function parsePrice(response) {
 - Loguj z **kontekstem** — która ruta, jaki endpoint, jaki błąd
 
 **Przykład — OK:**
+
 ```javascript
 console.log(`[${route.key}] Price changed: ${prevPrice} → ${newPrice}`);
 ```
 
 **Przykład — ❌ ZABRONIONE:**
+
 ```javascript
 // ❌ Logging sekrety — ZAKAZANE
-console.log('Response:', response);  // response zawiera token!
-console.log('User email:', userData.email);
+console.log("Response:", response); // response zawiera token!
+console.log("User email:", userData.email);
 ```
 
 ### Database & API Queries
+
 - **Parametryzuj zapytania** — nigdy string concatenation
 - **Nigdy nie trustuj danych z API** — zawsze waliduj
 
 **Przykład — OK:**
+
 ```javascript
 // Parametryzacja (jeśli byłaby baza)
-const result = await db.query('SELECT * FROM users WHERE id = ?', [userId]);
+const result = await db.query("SELECT * FROM users WHERE id = ?", [userId]);
 ```
 
 ---
@@ -354,6 +409,7 @@ Każdy agent/skill MUSI sprawdzić **WSZYSTKIE** punkty:
 Skill `review-code` MUSI zawsze uruchamiać przed finalnym committem:
 
 1. **Code Analysis**:
+
    ```bash
    # Parsuj kod vs guidelines
    npm run lint  # ESLint/Prettier
@@ -361,6 +417,7 @@ Skill `review-code` MUSI zawsze uruchamiać przed finalnym committem:
    ```
 
 2. **Security Scan**:
+
    ```bash
    # Szukaj: hardcoded secrets, console.log(token), .env files
    grep -r "process.env" check-flights.js  # powinno używać
@@ -368,6 +425,7 @@ Skill `review-code` MUSI zawsze uruchamiać przed finalnym committem:
    ```
 
 3. **Verification Report**:
+
    ```
    ✅ SOLID: Pass
    ✅ DRY: Pass
@@ -375,7 +433,7 @@ Skill `review-code` MUSI zawsze uruchamiać przed finalnym committem:
    ✅ YAGNI: Pass
    ✅ Clean Code: Pass
    ✅ Security: Pass
-   
+
    → Ready to commit
    ```
 
@@ -384,12 +442,14 @@ Skill `review-code` MUSI zawsze uruchamiać przed finalnym committem:
 ## 📋 Stack-Specific Notes
 
 ### Node.js (check-flights.js)
+
 - Runtime: CommonJS, `"use strict"`
 - HTTP: plain `https` module
 - Tests: `node:test` + `node:assert`
 - Config: `config.json` + `config.local.json` (gitignored)
 
 ### Cloudflare Workers (worker/src/index.js)
+
 - Runtime: ESM
 - HTTP: platform `fetch` API
 - **WAŻNE**: Osobny runtime od Node.js — zmiany w jednym nie wpływają na drugi
@@ -410,6 +470,7 @@ Skill `review-code` MUSI zawsze uruchamiać przed finalnym committem:
 ## 🚨 Summary
 
 **TL;DR:**
+
 1. ✅ SOLID + DRY + KISS + YAGNI — zawsze
 2. ✅ Clean Code — nazewnictwo, funkcje krótkie, błędy descriptive
 3. ✅ Security — sekrety w env, walidacja, no logging sekrety

@@ -553,14 +553,7 @@ function buildReturnFlightMap() {
 }
 
 // Update state and history with price change
-function updatePriceState(
-  route,
-  result,
-  state,
-  history,
-  prevPrice,
-  newPrice,
-) {
+function updatePriceState(route, result, state, history, prevPrice, newPrice) {
   let changed = false;
   if (prevPrice !== newPrice) {
     state[route.key][result.date] = { price: newPrice };
